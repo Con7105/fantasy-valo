@@ -10,6 +10,9 @@ export function Layout() {
         <NavLink to="/fantasy" className={({ isActive }) => (isActive ? 'tab active' : 'tab')}>
           Fantasy
         </NavLink>
+        <NavLink to="/league" className={({ isActive }) => (isActive ? 'tab active' : 'tab')}>
+          League
+        </NavLink>
         <NavLink to="/settings" className={({ isActive }) => (isActive ? 'tab active' : 'tab')}>
           Settings
         </NavLink>

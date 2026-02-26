@@ -276,3 +276,50 @@
   display: inline-block;
   margin-bottom: 1rem;
 }
+
+.draft-participant-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+.draft-participant-row .input-url {
+  flex: 1;
+}
+
+.draft-board table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+.draft-board th,
+.draft-board td {
+  border: 1px solid var(--border);
+  padding: 0.5rem;
+  text-align: left;
+}
+.draft-board th {
+  background: var(--bg-elevated);
+  font-weight: 600;
+}
+.draft-board .cell-turn {
+  background: rgba(100, 108, 255, 0.15);
+}
+.draft-board .pick-cell {
+  min-height: 2rem;
+}
+
+.draft-pick-list {
+  max-height: 280px;
+  overflow-y: auto;
+}
+.draft-pick-list button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.25rem;
+}
+.draft-pick-list button:disabled {
+  opacity: 0.5;
+}

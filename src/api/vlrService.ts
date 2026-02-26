@@ -296,13 +296,17 @@ export async function fetchEventStats(eventId: string): Promise<EventPlayerStatN
   return stats;
 }
 
+export type MatchFilter = (m: EventMatchItemNorm) => boolean;
+
 export async function fetchPerPlayerMapPoints(
-  eventId: string
+  eventId: string,
+  matchFilter?: MatchFilter
 ): Promise<Record<string, number[]>> {
   const matches = await fetchEventMatches(eventId, 50);
-  const completed = matches.filter(
+  let completed = matches.filter(
     (m) => m.status === 'completed' && m.team1Name !== 'TBD' && m.team2Name !== 'TBD'
   );
+  if (matchFilter) completed = completed.filter(matchFilter);
 
   const result: Record<string, number[]> = {};
 
@@ -344,4 +348,26 @@ export async function fetchPerPlayerMapPoints(
   }
 
   return result;
+}
+
+const PHASE_STAGE_HINTS: Record<string, string[]> = {
+  '0-0': ['round 1', '0-0', 'r1'],
+  '1-0/0-1': ['round 2', '1-0', '0-1', 'r2'],
+  '1-1': ['round 3', '1-1', 'r3'],
+};
+
+function phaseMatchFilter(phase: string): MatchFilter {
+  const hints = PHASE_STAGE_HINTS[phase] ?? [];
+  return (m) => {
+    const s = (m.stage ?? '').toLowerCase();
+    if (!s) return true;
+    return hints.some((h) => s.includes(h));
+  };
+}
+
+export async function fetchPerPlayerMapPointsForPhase(
+  eventId: string,
+  phase: string
+): Promise<Record<string, number[]>> {
+  return fetchPerPlayerMapPoints(eventId, phaseMatchFilter(phase));
 }

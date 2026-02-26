@@ -10,7 +10,7 @@ export function Settings() {
 
   const handleChange = (value: string) => {
     setUrl(value);
-    if (value.trim()) setApiBaseUrl(value.trim());
+    setApiBaseUrl(value.trim());
   };
 
   return (
@@ -24,11 +24,13 @@ export function Settings() {
             type="url"
             value={url}
             onChange={(e) => handleChange(e.target.value)}
-            placeholder="https://vlrggapi.vercel.app"
+            placeholder="/api/proxy"
             className="input-url"
           />
         </label>
-        <p className="caption">Community API for VLR.gg data (default: vlrggapi.vercel.app).</p>
+        <p className="caption">
+          Default /api/proxy uses the app’s proxy (avoids CORS). Leave empty or set to /api/proxy.
+        </p>
       </section>
       <section className="section">
         <h2>Fantasy</h2>

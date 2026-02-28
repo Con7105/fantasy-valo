@@ -38,6 +38,25 @@ interface V2MatchSegment {
   team1?: { name: string; score?: string; is_winner?: boolean };
   team2?: { name: string; score?: string; is_winner?: boolean };
 }
+/** One row from performance.advanced_stats – keys "1"-"13" match VLR columns (2K,3K,4K,5K, 1v1-1v5, ECON, PL, DE). */
+interface V2AdvancedStatEntry {
+  player?: string;
+  '1'?: string;
+  '2'?: string;
+  '3'?: string;
+  '4'?: string;
+  '5'?: string;
+  '6'?: string;
+  '7'?: string;
+  '8'?: string;
+  '9'?: string;
+  '10'?: string;
+  '11'?: string;
+  '12'?: string;
+  '13'?: string;
+  [key: string]: string | undefined;
+}
+
 interface V2MatchDetailSegment {
   match_id?: string;
   teams?: { name: string; score?: string }[];
@@ -48,6 +67,9 @@ interface V2MatchDetailSegment {
       team2?: V2PlayerStat[];
     };
   }[];
+  performance?: {
+    advanced_stats?: V2AdvancedStatEntry[];
+  };
 }
 interface V2PlayerStat {
   name?: string;
@@ -182,6 +204,40 @@ function getClutch(p: V2PlayerStat, key: '1v1' | '1v2' | '1v3' | '1v4' | '1v5'):
   const noUnderscore = `clutch${key}` as keyof V2PlayerStat;
   const val = p[snake] ?? p[key] ?? p[noUnderscore];
   return parseNum(val as string | number | undefined);
+}
+
+/** Keys 6–10 in advanced_stats = 1v1, 1v2, 1v3, 1v4, 1v5. Returns clutch counts from one row. */
+function clutchesFromAdvancedStat(entry: V2AdvancedStatEntry): ClutchCounts {
+  return {
+    clutch1v1: parseNum(entry['6']),
+    clutch1v2: parseNum(entry['7']),
+    clutch1v3: parseNum(entry['8']),
+    clutch1v4: parseNum(entry['9']),
+    clutch1v5: parseNum(entry['10']),
+  };
+}
+
+/** Build map: normalized player id (e.g. "NoManXLG") -> ClutchCounts. Match-level stats. */
+function buildClutchMapFromAdvancedStats(entries: V2AdvancedStatEntry[]): Map<string, ClutchCounts> {
+  const map = new Map<string, ClutchCounts>();
+  for (const e of entries ?? []) {
+    const id = (e.player ?? '').trim().replace(/\s/g, '').toLowerCase();
+    if (!id) continue;
+    const clutches = clutchesFromAdvancedStat(e);
+    const hasAny = clutches.clutch1v1 + clutches.clutch1v2 + clutches.clutch1v3 + clutches.clutch1v4 + clutches.clutch1v5 > 0;
+    if (hasAny) map.set(id, clutches);
+  }
+  return map;
+}
+
+/** Normalize player key for lookup: "NoMan" + "XLG" -> "nomanxlg". */
+function playerKeyForClutchLookup(name: string, team: string): string {
+  return (name + team).replace(/\s/g, '').toLowerCase();
+}
+
+/** Clutch points from counts: +1 per X (1v1=1, 1v2=2, ...). */
+function clutchPointsFromCounts(c: ClutchCounts): number {
+  return c.clutch1v1 * 1 + c.clutch1v2 * 2 + c.clutch1v3 * 3 + c.clutch1v4 * 4 + c.clutch1v5 * 5;
 }
 
 function v2ToInput(p: V2PlayerStat, team: string): MapPlayerStatsInput | null {
@@ -376,6 +432,9 @@ export async function fetchPerPlayerMapPoints(
     const numMaps = Math.max(maps.length, 1);
     const winBonusPerMap = fantasyScoring.teamWinBonusPerMap(numMaps);
 
+    const advancedStats = detail.performance?.advanced_stats ?? [];
+    const clutchMap = buildClutchMapFromAdvancedStats(advancedStats);
+
     for (const map of maps) {
       const t1 = map.players?.team1 ?? [];
       const t2 = map.players?.team2 ?? [];
@@ -393,6 +452,17 @@ export async function fetchPerPlayerMapPoints(
         const winBonus =
           match.status === 'completed' && winningTeamName === input.team ? winBonusPerMap : 0;
         const breakdown = fantasyScoring.pointsForMapBreakdown(input, allInputs, winBonus);
+
+        const lookupKey = playerKeyForClutchLookup(input.name, input.team);
+        const matchClutches = clutchMap.get(lookupKey);
+        if (matchClutches) {
+          const totalClutchPts = clutchPointsFromCounts(matchClutches);
+          const clutchPerMap = totalClutchPts / numMaps;
+          breakdown.total += clutchPerMap;
+          breakdown.points.clutch += clutchPerMap;
+          breakdown.stats.clutches = matchClutches;
+        }
+
         const key = `${input.name}|${input.team}`;
         const ptsList = mapPoints[key] ?? [];
         ptsList.push(breakdown.total);

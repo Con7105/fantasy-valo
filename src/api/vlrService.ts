@@ -432,16 +432,21 @@ export async function fetchPerPlayerMapPoints(
     const numMaps = Math.max(maps.length, 1);
     const winBonusPerMap = fantasyScoring.teamWinBonusPerMap(numMaps);
 
-    const advancedStats = detail.performance?.advanced_stats ?? [];
+    const isCompleted = match.status === 'completed';
+    const advancedStats = isCompleted ? (detail.performance?.advanced_stats ?? []) : [];
     const clutchMap = buildClutchMapFromAdvancedStats(advancedStats);
 
     for (const map of maps) {
       const t1 = map.players?.team1 ?? [];
       const t2 = map.players?.team2 ?? [];
-      const allInputs: MapPlayerStatsInput[] = [
+      let allInputs: MapPlayerStatsInput[] = [
         ...t1.map((p) => v2ToInput(p, team1Name)).filter(Boolean),
         ...t2.map((p) => v2ToInput(p, team2Name)).filter(Boolean),
       ] as MapPlayerStatsInput[];
+
+      if (isCompleted) {
+        allInputs = allInputs.map((i) => ({ ...i, clutches: undefined }));
+      }
 
       const mapPlayed =
         allInputs.length > 0 &&
@@ -453,14 +458,16 @@ export async function fetchPerPlayerMapPoints(
           match.status === 'completed' && winningTeamName === input.team ? winBonusPerMap : 0;
         const breakdown = fantasyScoring.pointsForMapBreakdown(input, allInputs, winBonus);
 
-        const lookupKey = playerKeyForClutchLookup(input.name, input.team);
-        const matchClutches = clutchMap.get(lookupKey);
-        if (matchClutches) {
-          const totalClutchPts = clutchPointsFromCounts(matchClutches);
-          const clutchPerMap = totalClutchPts / numMaps;
-          breakdown.total += clutchPerMap;
-          breakdown.points.clutch += clutchPerMap;
-          breakdown.stats.clutches = matchClutches;
+        if (isCompleted) {
+          const lookupKey = playerKeyForClutchLookup(input.name, input.team);
+          const matchClutches = clutchMap.get(lookupKey);
+          if (matchClutches) {
+            const totalClutchPts = clutchPointsFromCounts(matchClutches);
+            const clutchPerMap = totalClutchPts / numMaps;
+            breakdown.total += clutchPerMap;
+            breakdown.points.clutch += clutchPerMap;
+            breakdown.stats.clutches = matchClutches;
+          }
         }
 
         const key = `${input.name}|${input.team}`;

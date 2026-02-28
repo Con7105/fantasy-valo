@@ -346,7 +346,7 @@ export async function fetchPerPlayerMapPoints(
 
       const mapPlayed =
         allInputs.length > 0 &&
-        allInputs.some((i) => i.kills > 0 || i.deaths > 0 || i.assists > 0);
+        allInputs.some((i) => i.kills > 0 || i.firstDeaths > 0 || i.assists > 0);
       if (!mapPlayed) continue;
 
       for (const input of allInputs) {

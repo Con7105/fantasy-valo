@@ -17,11 +17,18 @@ export function setApiBaseUrl(url: string): void {
   localStorage.setItem(STORAGE_KEY, url);
 }
 
+/** When using the same-origin proxy (/api/proxy), we pass the path as a query param so Vercel deploys a single serverless function. */
+const PROXY_BASE = '/api/proxy';
+
 export function apiUrl(path: string, searchParams?: Record<string, string>): string {
   const base = getApiBaseUrl().replace(/\/+$/, '');
   const p = path.replace(/^\/+/, '');
+  const params = new URLSearchParams(searchParams ?? {});
+  if (base === PROXY_BASE) {
+    params.set('path', p);
+    return `${base}?${params.toString()}`;
+  }
   const pathPart = `${base}/${p}`;
-  if (!searchParams || Object.keys(searchParams).length === 0) return pathPart;
-  const params = new URLSearchParams(searchParams);
-  return `${pathPart}?${params.toString()}`;
+  if (params.toString()) return `${pathPart}?${params.toString()}`;
+  return pathPart;
 }

@@ -1,6 +1,16 @@
 import { useApp } from '../context/AppContext';
-import type { MapPointsBreakdown } from '../types';
+import type { ClutchCounts, MapPointsBreakdown } from '../types';
 import { fantasyScoring } from '../scoring';
+
+function formatClutchFormula(c: ClutchCounts): string {
+  const parts: string[] = [];
+  if (c.clutch1v1) parts.push(`${c.clutch1v1}×1`);
+  if (c.clutch1v2) parts.push(`${c.clutch1v2}×2`);
+  if (c.clutch1v3) parts.push(`${c.clutch1v3}×3`);
+  if (c.clutch1v4) parts.push(`${c.clutch1v4}×4`);
+  if (c.clutch1v5) parts.push(`${c.clutch1v5}×5`);
+  return parts.length ? parts.join(' + ') : '—';
+}
 
 interface PlayerStatsBreakdownModalProps {
   playerName: string;
@@ -38,6 +48,23 @@ function MapBreakdownRow({ mapIndex, b }: { mapIndex: number; b: MapPointsBreakd
             <td>{stats.firstDeaths}</td>
             <td className="breakdown-formula">{stats.firstDeaths} × (-1)</td>
             <td className="breakdown-pts">{points.firstDeaths.toFixed(1)} pts</td>
+          </tr>
+          <tr>
+            <td>Clutch (1vX)</td>
+            <td>
+              {formatClutchFormula(stats.clutches) !== '—'
+                ? [1, 2, 3, 4, 5]
+                    .map((x) => {
+                      const key = `clutch1v${x}` as keyof ClutchCounts;
+                      const n = stats.clutches[key];
+                      return n ? `${n}× 1v${x}` : null;
+                    })
+                    .filter(Boolean)
+                    .join(', ')
+                : '0'}
+            </td>
+            <td className="breakdown-formula">+1 per X → {formatClutchFormula(stats.clutches)}</td>
+            <td className="breakdown-pts">{points.clutch.toFixed(1)} pts</td>
           </tr>
           <tr>
             <td>ACS (highest on map)</td>

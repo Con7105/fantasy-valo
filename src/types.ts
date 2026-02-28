@@ -59,6 +59,15 @@ export interface FantasyTeam {
   players: FantasyRosterSlot[];
 }
 
+/** Clutch counts: 1v1, 1v2, 1v3, 1v4, 1v5 (rounds won in that situation). */
+export interface ClutchCounts {
+  clutch1v1: number;
+  clutch1v2: number;
+  clutch1v3: number;
+  clutch1v4: number;
+  clutch1v5: number;
+}
+
 export interface MapPlayerStatsInput {
   name: string;
   kills: number;
@@ -70,6 +79,8 @@ export interface MapPlayerStatsInput {
   adr: number;
   hsPercent: number;
   team: string;
+  /** Clutch counts per 1vX. If omitted, treated as zeros. */
+  clutches?: ClutchCounts;
 }
 
 /** Per-map point breakdown for display when selecting a player */
@@ -84,6 +95,7 @@ export interface MapPointsBreakdown {
     kastPercent: number;
     adr: number;
     hsPercent: number;
+    clutches: ClutchCounts;
   };
   /** Point contribution from each category */
   points: {
@@ -91,6 +103,7 @@ export interface MapPointsBreakdown {
     firstKills: number;
     assists: number;
     firstDeaths: number;
+    clutch: number;
     acsBonus: number;
     kastBonus: number;
     adrBonus: number;

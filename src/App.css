@@ -435,6 +435,12 @@
   font-size: 0.875rem;
   color: var(--text-secondary);
 }
+.team-total {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--accent, var(--text));
+  margin-left: 0.25rem;
+}
 
 .add-players-section {
   border-top: 1px solid var(--border);

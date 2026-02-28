@@ -9,6 +9,7 @@ import {
   type MapPlayerStatsInput,
   type MapPointsBreakdown,
 } from '../types';
+import type { ClutchCounts } from '../types';
 import { fantasyScoring } from '../scoring';
 
 // V2 API response shapes
@@ -58,6 +59,12 @@ interface V2PlayerStat {
   adr?: string;
   fk?: string;
   fd?: string;
+  /** Clutch counts (1v1, 1v2, …). API may use clutch_1v1, 1v1, etc. */
+  clutch_1v1?: string | number;
+  clutch_1v2?: string | number;
+  clutch_1v3?: string | number;
+  clutch_1v4?: string | number;
+  clutch_1v5?: string | number;
 }
 
 function extractEventId(urlPath: string | undefined): string | null {
@@ -152,9 +159,23 @@ async function fetchMatchDetail(matchId: string): Promise<V2MatchDetailSegment |
   }
 }
 
+function parseNum(v: string | number | undefined): number {
+  if (v === undefined) return 0;
+  if (typeof v === 'number') return Math.max(0, v);
+  const n = parseInt(String(v), 10);
+  return isNaN(n) ? 0 : Math.max(0, n);
+}
+
 function v2ToInput(p: V2PlayerStat, team: string): MapPlayerStatsInput | null {
   const name = p.name?.trim();
   if (!name) return null;
+  const clutches: ClutchCounts = {
+    clutch1v1: parseNum(p.clutch_1v1),
+    clutch1v2: parseNum(p.clutch_1v2),
+    clutch1v3: parseNum(p.clutch_1v3),
+    clutch1v4: parseNum(p.clutch_1v4),
+    clutch1v5: parseNum(p.clutch_1v5),
+  };
   return {
     name,
     kills: parseInt(p.kills ?? '0', 10) || 0,
@@ -166,6 +187,7 @@ function v2ToInput(p: V2PlayerStat, team: string): MapPlayerStatsInput | null {
     adr: parseFloat(p.adr ?? '0') || 0,
     hsPercent: 0,
     team,
+    clutches,
   };
 }
 

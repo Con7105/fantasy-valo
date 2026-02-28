@@ -114,7 +114,12 @@ export function Teams() {
           <p className="empty">No teams yet. Create one above.</p>
         ) : (
           <ul className="list teams-list">
-            {teams.map((team) => (
+            {teams.map((team) => {
+              const teamTotal = team.players.reduce((sum, slot) => {
+                const pts = pointsForPlayer(slot.playerName, slot.teamName);
+                return sum + (pts ?? 0);
+              }, 0);
+              return (
               <li key={team.id} className="team-card">
                 <div className="team-header">
                   {editingLabelId === team.id ? (
@@ -137,6 +142,7 @@ export function Teams() {
                     <>
                       <span className="team-label">{team.label}</span>
                       <span className="team-meta">({team.players.length} players)</span>
+                      <span className="team-total">Total: {teamTotal.toFixed(1)} pts</span>
                       <button type="button" className="btn small" onClick={() => startEditLabel(team)}>Edit label</button>
                       <button type="button" className="btn small" onClick={() => setAddingToTeamId(team.id)}>Add players</button>
                       <button type="button" className="btn small danger" onClick={() => deleteTeam(team.id)}>Delete</button>
@@ -180,7 +186,8 @@ export function Teams() {
                   ))}
                 </ul>
               </li>
-            ))}
+              );
+            })}
           </ul>
         )}
       </section>

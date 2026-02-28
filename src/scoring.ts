@@ -1,4 +1,4 @@
-import type { MapPlayerStatsInput, MapPointsBreakdown } from './types';
+import type { ClutchCounts, MapPlayerStatsInput, MapPointsBreakdown } from './types';
 
 const pointsPerKill = 3.0;
 const pointsPerFirstKillBonus = 2.0;
@@ -6,6 +6,23 @@ const pointsPerAssist = 1.5;
 const pointsPerFirstDeath = -1.0;
 const pointsHighestOnMap = 2.0;
 const pointsTeamMatchWin = 3.0;
+/** Clutch: +1 per X (e.g. 1v2 = +2, 1v4 = +4). */
+const clutchPointsPerX = 1.0;
+
+function clutchPoints(c: ClutchCounts | undefined): number {
+  if (!c) return 0;
+  return (
+    c.clutch1v1 * 1 * clutchPointsPerX +
+    c.clutch1v2 * 2 * clutchPointsPerX +
+    c.clutch1v3 * 3 * clutchPointsPerX +
+    c.clutch1v4 * 4 * clutchPointsPerX +
+    c.clutch1v5 * 5 * clutchPointsPerX
+  );
+}
+
+function emptyClutches(): ClutchCounts {
+  return { clutch1v1: 0, clutch1v2: 0, clutch1v3: 0, clutch1v4: 0, clutch1v5: 0 };
+}
 
 export const fantasyScoring = {
   pointsForMap(input: MapPlayerStatsInput, allPlayersOnMap: MapPlayerStatsInput[]): number {
@@ -26,6 +43,8 @@ export const fantasyScoring = {
     const firstKillsPts = input.firstKills * pointsPerFirstKillBonus;
     const assistsPts = input.assists * pointsPerAssist;
     const firstDeathsPts = input.firstDeaths * pointsPerFirstDeath;
+    const c = input.clutches ?? emptyClutches();
+    const clutchPts = clutchPoints(input.clutches);
 
     const acsMax = Math.max(0, ...allPlayersOnMap.map((p) => p.acs));
     const kastMax = Math.max(0, ...allPlayersOnMap.map((p) => p.kastPercent));
@@ -42,6 +61,7 @@ export const fantasyScoring = {
       firstKillsPts +
       assistsPts +
       firstDeathsPts +
+      clutchPts +
       acsBonus +
       kastBonus +
       adrBonus +
@@ -58,12 +78,14 @@ export const fantasyScoring = {
         kastPercent: input.kastPercent,
         adr: input.adr,
         hsPercent: input.hsPercent,
+        clutches: c,
       },
       points: {
         kills: killsPts,
         firstKills: firstKillsPts,
         assists: assistsPts,
         firstDeaths: firstDeathsPts,
+        clutch: clutchPts,
         acsBonus,
         kastBonus,
         adrBonus,

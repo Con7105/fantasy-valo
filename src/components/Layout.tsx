@@ -7,11 +7,14 @@ export function Layout() {
         <NavLink to="/" end className={({ isActive }) => (isActive ? 'tab active' : 'tab')}>
           Events
         </NavLink>
-        <NavLink to="/fantasy" className={({ isActive }) => (isActive ? 'tab active' : 'tab')}>
-          Fantasy
+        <NavLink to="/stats" className={({ isActive }) => (isActive ? 'tab active' : 'tab')}>
+          Stats
         </NavLink>
-        <NavLink to="/league" className={({ isActive }) => (isActive ? 'tab active' : 'tab')}>
-          League
+        <NavLink to="/teams" className={({ isActive }) => (isActive ? 'tab active' : 'tab')}>
+          Teams
+        </NavLink>
+        <NavLink to="/matchups" className={({ isActive }) => (isActive ? 'tab active' : 'tab')}>
+          Matchups
         </NavLink>
         <NavLink to="/settings" className={({ isActive }) => (isActive ? 'tab active' : 'tab')}>
           Settings

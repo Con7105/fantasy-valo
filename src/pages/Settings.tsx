@@ -33,9 +33,9 @@ export function Settings() {
         </p>
       </section>
       <section className="section">
-        <h2>Fantasy</h2>
+        <h2>Scoring</h2>
         <p className="caption">
-          Roster size: 5 players. Scoring: Per-map points (Kill +3, First kill +2, Assists
+          Per-map points: Kill +3, First kill +2, Assists
           +1.5, First death -1, highest ACS/KAST/ADR/HS% +2 each, team win +3). Final =
           average of maps, rounded to tenths.
         </p>

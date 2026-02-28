@@ -53,6 +53,12 @@ export interface FantasyRosterSlot {
   playerUrl?: string;
 }
 
+export interface FantasyTeam {
+  id: string;
+  label: string;
+  players: FantasyRosterSlot[];
+}
+
 export interface MapPlayerStatsInput {
   name: string;
   kills: number;
@@ -64,6 +70,35 @@ export interface MapPlayerStatsInput {
   adr: number;
   hsPercent: number;
   team: string;
+}
+
+/** Per-map point breakdown for display when selecting a player */
+export interface MapPointsBreakdown {
+  /** Raw stat values on this map */
+  stats: {
+    kills: number;
+    firstKills: number;
+    assists: number;
+    firstDeaths: number;
+    acs: number;
+    kastPercent: number;
+    adr: number;
+    hsPercent: number;
+  };
+  /** Point contribution from each category */
+  points: {
+    kills: number;
+    firstKills: number;
+    assists: number;
+    firstDeaths: number;
+    acsBonus: number;
+    kastBonus: number;
+    adrBonus: number;
+    hsBonus: number;
+    winBonus: number;
+  };
+  /** Total points for this map */
+  total: number;
 }
 
 // Normalized (camelCase) for app use

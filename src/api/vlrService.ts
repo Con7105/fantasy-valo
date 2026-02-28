@@ -7,6 +7,7 @@ import {
   type EventMatchItemNorm,
   type EventPlayerStatNorm,
   type MapPlayerStatsInput,
+  type MapPointsBreakdown,
 } from '../types';
 import { fantasyScoring } from '../scoring';
 
@@ -298,19 +299,26 @@ export async function fetchEventStats(eventId: string): Promise<EventPlayerStatN
 
 export type MatchFilter = (m: EventMatchItemNorm) => boolean;
 
+export interface PerPlayerMapPointsResult {
+  mapPoints: Record<string, number[]>;
+  mapBreakdowns: Record<string, MapPointsBreakdown[]>;
+}
+
 export async function fetchPerPlayerMapPoints(
   eventId: string,
   matchFilter?: MatchFilter
-): Promise<Record<string, number[]>> {
+): Promise<PerPlayerMapPointsResult> {
   const matches = await fetchEventMatches(eventId, 50);
-  let completed = matches.filter(
-    (m) => m.status === 'completed' && m.team1Name !== 'TBD' && m.team2Name !== 'TBD'
+  const scoreableStatuses: MatchStatus[] = ['completed', 'live', 'ongoing'];
+  let toScore = matches.filter(
+    (m) => scoreableStatuses.includes(m.status) && m.team1Name !== 'TBD' && m.team2Name !== 'TBD'
   );
-  if (matchFilter) completed = completed.filter(matchFilter);
+  if (matchFilter) toScore = toScore.filter(matchFilter);
 
-  const result: Record<string, number[]> = {};
+  const mapPoints: Record<string, number[]> = {};
+  const mapBreakdowns: Record<string, MapPointsBreakdown[]> = {};
 
-  for (const match of completed) {
+  for (const match of toScore) {
     const detail = await fetchMatchDetail(match.id);
     if (!detail) continue;
 
@@ -336,18 +344,27 @@ export async function fetchPerPlayerMapPoints(
         ...t2.map((p) => v2ToInput(p, team2Name)).filter(Boolean),
       ] as MapPlayerStatsInput[];
 
+      const mapPlayed =
+        allInputs.length > 0 &&
+        allInputs.some((i) => i.kills > 0 || i.deaths > 0 || i.assists > 0);
+      if (!mapPlayed) continue;
+
       for (const input of allInputs) {
-        const base = fantasyScoring.pointsForMap(input, allInputs);
-        const bonus = winningTeamName === input.team ? winBonusPerMap : 0;
+        const winBonus =
+          match.status === 'completed' && winningTeamName === input.team ? winBonusPerMap : 0;
+        const breakdown = fantasyScoring.pointsForMapBreakdown(input, allInputs, winBonus);
         const key = `${input.name}|${input.team}`;
-        const list = result[key] ?? [];
-        list.push(base + bonus);
-        result[key] = list;
+        const ptsList = mapPoints[key] ?? [];
+        ptsList.push(breakdown.total);
+        mapPoints[key] = ptsList;
+        const bdList = mapBreakdowns[key] ?? [];
+        bdList.push(breakdown);
+        mapBreakdowns[key] = bdList;
       }
     }
   }
 
-  return result;
+  return { mapPoints, mapBreakdowns };
 }
 
 const PHASE_STAGE_HINTS: Record<string, string[]> = {
@@ -368,6 +385,6 @@ function phaseMatchFilter(phase: string): MatchFilter {
 export async function fetchPerPlayerMapPointsForPhase(
   eventId: string,
   phase: string
-): Promise<Record<string, number[]>> {
+): Promise<PerPlayerMapPointsResult> {
   return fetchPerPlayerMapPoints(eventId, phaseMatchFilter(phase));
 }

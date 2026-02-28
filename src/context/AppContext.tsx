@@ -18,6 +18,7 @@ import type {
   EventMatchItemNorm,
   EventPlayerStatNorm,
   FantasyRosterSlot,
+  MapPointsBreakdown,
 } from '../types';
 import { fantasyScoring } from '../scoring';
 
@@ -56,6 +57,7 @@ interface AppState {
   eventMatches: EventMatchItemNorm[];
   eventStats: EventPlayerStatNorm[];
   perPlayerMapPoints: Record<string, number[]>;
+  perPlayerMapBreakdowns: Record<string, MapPointsBreakdown[]>;
   roster: FantasyRosterSlot[];
   rosterLocked: boolean;
   isLoading: boolean;
@@ -71,6 +73,7 @@ interface AppContextValue extends AppState {
   addPlayer: (stat: EventPlayerStatNorm) => void;
   removePlayer: (slot: FantasyRosterSlot) => void;
   pointsForPlayer: (playerName: string, teamName: string) => number | null;
+  getPlayerBreakdown: (playerName: string, teamName: string) => MapPointsBreakdown[] | null;
   totalPoints: number;
   isRosterFull: boolean;
   loadFantasyData: () => Promise<void>;
@@ -92,6 +95,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       eventMatches: [],
       eventStats: [],
       perPlayerMapPoints: {},
+      perPlayerMapBreakdowns: {},
       roster: eventId ? loadRoster(eventId) : [],
       rosterLocked: false,
       isLoading: false,
@@ -110,6 +114,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       roster: loadRoster(id),
       eventStats: [],
       perPlayerMapPoints: {},
+      perPlayerMapBreakdowns: {},
     }));
   }, []);
 
@@ -163,7 +168,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const id = state.selectedEventId;
     if (!id) return;
     try {
-      const [matches, stats, mapPoints] = await Promise.all([
+      const [matches, stats, pointsResult] = await Promise.all([
         fetchEventMatches(id, 10),
         fetchEventStats(id),
         fetchPerPlayerMapPoints(id),
@@ -175,7 +180,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setState((prev) => ({
         ...prev,
         eventStats: stats,
-        perPlayerMapPoints: mapPoints,
+        perPlayerMapPoints: pointsResult.mapPoints,
+        perPlayerMapBreakdowns: pointsResult.mapBreakdowns,
         rosterLocked: hasStarted,
       }));
     } catch (e) {
@@ -183,6 +189,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ...prev,
         eventStats: [],
         perPlayerMapPoints: {},
+        perPlayerMapBreakdowns: {},
         errorMessage: e instanceof Error ? e.message : String(e),
       }));
     }
@@ -228,6 +235,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [state.perPlayerMapPoints]
   );
 
+  const getPlayerBreakdown = useCallback(
+    (playerName: string, teamName: string): MapPointsBreakdown[] | null => {
+      const key = `${playerName}|${teamName}`;
+      const breakdowns = state.perPlayerMapBreakdowns[key];
+      if (!breakdowns?.length) return null;
+      return breakdowns;
+    },
+    [state.perPlayerMapBreakdowns]
+  );
+
   const totalPoints = useMemo(() => {
     return state.roster.reduce((acc, slot) => {
       const key = `${slot.playerName}|${slot.teamName}`;
@@ -266,11 +283,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       addPlayer,
       removePlayer,
       pointsForPlayer,
+      getPlayerBreakdown,
       totalPoints,
       isRosterFull,
       loadFantasyData,
     }),
-    [state, selectEvent, loadEvents, loadEventMatches, setError, clearError, addPlayer, removePlayer, pointsForPlayer, totalPoints, isRosterFull, loadFantasyData]
+    [state, selectEvent, loadEvents, loadEventMatches, setError, clearError, addPlayer, removePlayer, pointsForPlayer, getPlayerBreakdown, totalPoints, isRosterFull, loadFantasyData]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

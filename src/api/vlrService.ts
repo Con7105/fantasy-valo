@@ -59,12 +59,22 @@ interface V2PlayerStat {
   adr?: string;
   fk?: string;
   fd?: string;
-  /** Clutch counts (1v1, 1v2, …). API may use clutch_1v1, 1v1, etc. */
+  /** Clutch counts – API may use clutch_1v1 or literal "1v1" etc. */
   clutch_1v1?: string | number;
   clutch_1v2?: string | number;
   clutch_1v3?: string | number;
   clutch_1v4?: string | number;
   clutch_1v5?: string | number;
+  '1v1'?: string | number;
+  '1v2'?: string | number;
+  '1v3'?: string | number;
+  '1v4'?: string | number;
+  '1v5'?: string | number;
+  clutch1v1?: string | number;
+  clutch1v2?: string | number;
+  clutch1v3?: string | number;
+  clutch1v4?: string | number;
+  clutch1v5?: string | number;
 }
 
 function extractEventId(urlPath: string | undefined): string | null {
@@ -166,15 +176,23 @@ function parseNum(v: string | number | undefined): number {
   return isNaN(n) ? 0 : Math.max(0, n);
 }
 
+/** Read clutch count from API – tries clutch_1v1, 1v1, and clutch1v1 style keys. */
+function getClutch(p: V2PlayerStat, key: '1v1' | '1v2' | '1v3' | '1v4' | '1v5'): number {
+  const snake = `clutch_${key}` as keyof V2PlayerStat;
+  const noUnderscore = `clutch${key}` as keyof V2PlayerStat;
+  const val = p[snake] ?? p[key] ?? p[noUnderscore];
+  return parseNum(val as string | number | undefined);
+}
+
 function v2ToInput(p: V2PlayerStat, team: string): MapPlayerStatsInput | null {
   const name = p.name?.trim();
   if (!name) return null;
   const clutches: ClutchCounts = {
-    clutch1v1: parseNum(p.clutch_1v1),
-    clutch1v2: parseNum(p.clutch_1v2),
-    clutch1v3: parseNum(p.clutch_1v3),
-    clutch1v4: parseNum(p.clutch_1v4),
-    clutch1v5: parseNum(p.clutch_1v5),
+    clutch1v1: getClutch(p, '1v1'),
+    clutch1v2: getClutch(p, '1v2'),
+    clutch1v3: getClutch(p, '1v3'),
+    clutch1v4: getClutch(p, '1v4'),
+    clutch1v5: getClutch(p, '1v5'),
   };
   return {
     name,

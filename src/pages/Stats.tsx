@@ -114,8 +114,10 @@ export function Stats() {
       t.players.some((p) => p.playerName === stat.playerName && p.teamName === stat.teamName)
     ).map((t) => t.label);
     const breakdowns = getPlayerBreakdown(stat.playerName, stat.teamName);
+    const mapCount = breakdowns?.length ?? 1;
+    const avg = (v: number) => (mapCount > 0 ? v / mapCount : 0);
     return (
-      <li key={`${stat.playerName}-${stat.teamName}`} className="roster-slot">
+      <li key={`${stat.playerName}-${stat.teamName}`} className="roster-slot stats-roster-slot">
         <button
           type="button"
           className="roster-slot-info"
@@ -128,14 +130,24 @@ export function Stats() {
             <span className="user-team-labels"> {userTeamLabels.join(', ')}</span>
           )}
         </button>
+        <div className="stats-row-raw" aria-label="Actual stats from maps played">
+          <span className="stats-raw-item" title={`Total: ${stat.kills} · Per map: ${avg(stat.kills).toFixed(1)}`}>K {stat.kills} <span className="stats-raw-avg">({avg(stat.kills).toFixed(1)})</span></span>
+          <span className="stats-raw-item" title={`Total: ${stat.deaths} · Per map: ${avg(stat.deaths).toFixed(1)}`}>D {stat.deaths} <span className="stats-raw-avg">({avg(stat.deaths).toFixed(1)})</span></span>
+          <span className="stats-raw-item" title={`Total: ${stat.assists} · Per map: ${avg(stat.assists).toFixed(1)}`}>A {stat.assists} <span className="stats-raw-avg">({avg(stat.assists).toFixed(1)})</span></span>
+          <span className="stats-raw-item" title={`First kills total: ${stat.firstKills} · Per map: ${avg(stat.firstKills).toFixed(1)}`}>FK {stat.firstKills}</span>
+          <span className="stats-raw-item" title={`First deaths total: ${stat.firstDeaths} · Per map: ${avg(stat.firstDeaths).toFixed(1)}`}>FD {stat.firstDeaths}</span>
+          <span className="stats-raw-item" title={`ACS avg: ${stat.acs.toFixed(1)}`}>ACS {stat.acs.toFixed(1)}</span>
+          <span className="stats-raw-item" title={`ADR avg: ${stat.adr.toFixed(1)}`}>ADR {stat.adr.toFixed(1)}</span>
+          <span className="stats-raw-item" title={`K/D ratio: ${stat.kdRatio.toFixed(2)}`}>K/D {stat.kdRatio.toFixed(2)}</span>
+        </div>
         {breakdowns && breakdowns.length > 0 ? (
-          <span className="roster-map-pts" title={`Map scores: ${breakdowns.map((b, i) => `Map ${i + 1}: ${b.total.toFixed(1)}`).join(', ')}`}>
+          <span className="roster-map-pts" title={`Map points: ${breakdowns.map((b, i) => `Map ${i + 1}: ${b.total.toFixed(1)}`).join(', ')}`}>
             {breakdowns.map((b, i) => (
               <span key={i} className="roster-map-pt">{b.total.toFixed(1)}</span>
             ))}
           </span>
         ) : null}
-        <span className="slot-pts">
+        <span className="slot-pts" title="Average fantasy points">
           {pointsForPlayer(stat.playerName, stat.teamName)?.toFixed(1) ?? '—'}
         </span>
       </li>
@@ -157,6 +169,9 @@ export function Stats() {
       <p className="caption">
         All players in the selected event with their map-by-map points and average. Click a player for full breakdown.
       </p>
+      <p className="caption stats-sort-note">
+        All sort options order players from high to low.
+      </p>
 
       <section className="section stats-actions">
         <button
@@ -175,9 +190,9 @@ export function Stats() {
             onChange={(e) => setSortBy(e.target.value as SortOption)}
           >
             <option value="none">None</option>
-            <option value="avg-desc">Average points (high to low)</option>
+            <option value="avg-desc">Average points</option>
             {STAT_OPTIONS.map((o) => (
-              <option key={o.key} value={o.key}>{o.label} (high to low)</option>
+              <option key={o.key} value={o.key}>{o.label}</option>
             ))}
             <option value="custom">Custom ratio…</option>
           </select>
@@ -204,7 +219,6 @@ export function Stats() {
                 <option key={o.key} value={o.key}>{o.label}</option>
               ))}
             </select>
-            <span className="stats-custom-ratio-desc">(high to low)</span>
           </div>
         )}
       </section>

@@ -98,6 +98,28 @@
   font-size: 0.8125rem;
   color: var(--text-secondary);
 }
+.stats-sort-note {
+  margin-top: 0.25rem;
+}
+
+.stats-roster-slot {
+  flex-wrap: wrap;
+}
+.stats-row-raw {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+.stats-raw-item {
+  white-space: nowrap;
+}
+.stats-raw-avg {
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
 .section h2 + .roster-list {
   margin-top: 0.5rem;
 }

@@ -72,6 +72,32 @@
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+.stats-custom-ratio {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.stats-custom-ratio-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+.stats-custom-ratio select {
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  background: var(--bg);
+  color: var(--text);
+}
+.stats-custom-ratio-divider {
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.stats-custom-ratio-desc {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
 .section h2 + .roster-list {
   margin-top: 0.5rem;
 }

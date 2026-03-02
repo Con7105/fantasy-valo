@@ -4,7 +4,27 @@ import { useTeams } from '../context/TeamsContext';
 import { PlayerStatsBreakdownModal } from '../components/PlayerStatsBreakdownModal';
 import type { EventPlayerStatNorm } from '../types';
 
-type SortOption = 'none' | 'avg-desc';
+type NumericStatKey = 'kills' | 'deaths' | 'assists' | 'firstKills' | 'firstDeaths' | 'acs' | 'adr' | 'kdRatio' | 'rating';
+
+const STAT_OPTIONS: { key: NumericStatKey; label: string }[] = [
+  { key: 'kills', label: 'Kills' },
+  { key: 'deaths', label: 'Deaths' },
+  { key: 'assists', label: 'Assists' },
+  { key: 'firstKills', label: 'First kills' },
+  { key: 'firstDeaths', label: 'First deaths' },
+  { key: 'acs', label: 'ACS' },
+  { key: 'adr', label: 'ADR' },
+  { key: 'kdRatio', label: 'K/D ratio' },
+  { key: 'rating', label: 'Rating' },
+];
+
+type SortOption = 'none' | 'avg-desc' | NumericStatKey | 'custom';
+
+function getStatValue(stat: EventPlayerStatNorm, key: NumericStatKey): number {
+  const v = stat[key];
+  if (typeof v === 'number' && !Number.isNaN(v)) return v;
+  return 0;
+}
 
 function isPlayerInAnyTeam(
   stat: EventPlayerStatNorm,
@@ -15,12 +35,34 @@ function isPlayerInAnyTeam(
   );
 }
 
-function sortStats(stats: EventPlayerStatNorm[], sortBy: SortOption, pointsForPlayer: (name: string, team: string) => number | null): EventPlayerStatNorm[] {
+function sortStats(
+  stats: EventPlayerStatNorm[],
+  sortBy: SortOption,
+  pointsForPlayer: (name: string, team: string) => number | null,
+  customRatio?: { num: NumericStatKey; den: NumericStatKey }
+): EventPlayerStatNorm[] {
   if (sortBy === 'none') return stats;
   return [...stats].sort((a, b) => {
-    const ptsA = pointsForPlayer(a.playerName, a.teamName) ?? 0;
-    const ptsB = pointsForPlayer(b.playerName, b.teamName) ?? 0;
-    return ptsB - ptsA;
+    if (sortBy === 'avg-desc') {
+      const ptsA = pointsForPlayer(a.playerName, a.teamName) ?? 0;
+      const ptsB = pointsForPlayer(b.playerName, b.teamName) ?? 0;
+      return ptsB - ptsA;
+    }
+    if (sortBy === 'custom' && customRatio) {
+      const denA = getStatValue(a, customRatio.den);
+      const denB = getStatValue(b, customRatio.den);
+      const numA = getStatValue(a, customRatio.num);
+      const numB = getStatValue(b, customRatio.num);
+      const ratioA = denA !== 0 ? numA / denA : (numA > 0 ? 1e9 : 0);
+      const ratioB = denB !== 0 ? numB / denB : (numB > 0 ? 1e9 : 0);
+      return ratioB - ratioA;
+    }
+    if (STAT_OPTIONS.some((o) => o.key === sortBy)) {
+      const va = getStatValue(a, sortBy as NumericStatKey);
+      const vb = getStatValue(b, sortBy as NumericStatKey);
+      return vb - va;
+    }
+    return 0;
   });
 }
 
@@ -39,6 +81,8 @@ export function Stats() {
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [sortBy, setSortBy] = useState<SortOption>('none');
+  const [customNum, setCustomNum] = useState<NumericStatKey>('kills');
+  const [customDen, setCustomDen] = useState<NumericStatKey>('deaths');
 
   useEffect(() => {
     if (selectedEventId && eventStats.length === 0) loadFantasyData();
@@ -50,6 +94,8 @@ export function Stats() {
     setLoading(false);
   };
 
+  const customRatio = sortBy === 'custom' ? { num: customNum, den: customDen } : undefined;
+
   const { inTeamStats, notInTeamStats } = useMemo(() => {
     const inTeam: EventPlayerStatNorm[] = [];
     const notInTeam: EventPlayerStatNorm[] = [];
@@ -58,10 +104,10 @@ export function Stats() {
       else notInTeam.push(stat);
     }
     return {
-      inTeamStats: sortStats(inTeam, sortBy, pointsForPlayer),
-      notInTeamStats: sortStats(notInTeam, sortBy, pointsForPlayer),
+      inTeamStats: sortStats(inTeam, sortBy, pointsForPlayer, customRatio),
+      notInTeamStats: sortStats(notInTeam, sortBy, pointsForPlayer, customRatio),
     };
-  }, [eventStats, teams, sortBy, pointsForPlayer]);
+  }, [eventStats, teams, sortBy, pointsForPlayer, customRatio]);
 
   function renderPlayerRow(stat: EventPlayerStatNorm) {
     const userTeamLabels = teams.filter((t) =>
@@ -130,8 +176,37 @@ export function Stats() {
           >
             <option value="none">None</option>
             <option value="avg-desc">Average points (high to low)</option>
+            {STAT_OPTIONS.map((o) => (
+              <option key={o.key} value={o.key}>{o.label} (high to low)</option>
+            ))}
+            <option value="custom">Custom ratio…</option>
           </select>
         </div>
+        {sortBy === 'custom' && (
+          <div className="stats-custom-ratio">
+            <span className="stats-custom-ratio-label">Ratio:</span>
+            <select
+              aria-label="Numerator stat"
+              value={customNum}
+              onChange={(e) => setCustomNum(e.target.value as NumericStatKey)}
+            >
+              {STAT_OPTIONS.map((o) => (
+                <option key={o.key} value={o.key}>{o.label}</option>
+              ))}
+            </select>
+            <span className="stats-custom-ratio-divider">/</span>
+            <select
+              aria-label="Denominator stat"
+              value={customDen}
+              onChange={(e) => setCustomDen(e.target.value as NumericStatKey)}
+            >
+              {STAT_OPTIONS.map((o) => (
+                <option key={o.key} value={o.key}>{o.label}</option>
+              ))}
+            </select>
+            <span className="stats-custom-ratio-desc">(high to low)</span>
+          </div>
+        )}
       </section>
 
       <section className="section">

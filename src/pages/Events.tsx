@@ -5,7 +5,7 @@ import { useApp, normalizeMatchDate } from '../context/AppContext';
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function formatDateLabel(yyyyMmDd: string): string {
-  const [y, m, d] = yyyyMmDd.split('-').map(Number);
+  const [, m, d] = yyyyMmDd.split('-').map(Number);
   if (!m || !d) return yyyyMmDd;
   const month = MONTHS[(m ?? 1) - 1] ?? '';
   return `${month} ${d}`;

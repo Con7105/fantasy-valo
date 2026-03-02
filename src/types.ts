@@ -29,6 +29,7 @@ export interface EventMatchItem {
   team2_score?: number;
   status: MatchStatus;
   time?: string;
+  date?: string;
 }
 
 export interface EventPlayerStat {
@@ -137,6 +138,8 @@ export interface EventMatchItemNorm {
   team2Score?: number;
   status: MatchStatus;
   time?: string;
+  /** Match date (YYYY-MM-DD or API format) for week/day filtering */
+  date?: string;
 }
 
 export interface EventPlayerStatNorm {
@@ -180,6 +183,7 @@ export function eventMatchFromApi(m: EventMatchItem): EventMatchItemNorm {
     team2Score: m.team2_score,
     status: m.status,
     time: m.time,
+    date: m.date,
   };
 }
 

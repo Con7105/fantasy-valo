@@ -172,6 +172,7 @@ export async function fetchEventMatches(
         team1_score: parseScore(seg.team1?.score),
         team2_score: parseScore(seg.team2?.score),
         status: mapStatus(seg.status),
+        date: seg.date,
       })
     );
   }

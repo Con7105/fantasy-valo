@@ -442,6 +442,39 @@
   margin-left: 0.25rem;
 }
 
+.score-period-section .caption {
+  margin-bottom: 0.75rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+.week-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.date-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+}
+.date-checkboxes-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-right: 0.25rem;
+}
+.date-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+.date-checkbox input {
+  margin: 0;
+}
+
 .add-players-section {
   border-top: 1px solid var(--border);
   padding-top: 1rem;

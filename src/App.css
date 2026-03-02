@@ -542,6 +542,87 @@
   text-align: center;
 }
 
+.matchup-rankings {
+  margin-top: 0;
+}
+.matchup-rank-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem 1.5rem;
+  align-items: start;
+}
+@media (max-width: 640px) {
+  .matchup-rank-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.matchup-rank-card {
+  padding: 0.75rem 1rem;
+  background: var(--bg-elevated);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.matchup-rank-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+.matchup-rank-number {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  min-width: 1.75rem;
+}
+.matchup-rank-label {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+.matchup-rank-players {
+  list-style: none;
+  margin: 0 0 0.35rem;
+  padding: 0;
+}
+.matchup-rank-player-row {
+  margin: 0;
+}
+.matchup-rank-player-btn {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  width: 100%;
+  padding: 0.2rem 0;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+.matchup-rank-player-btn:hover {
+  opacity: 0.9;
+}
+.matchup-rank-player-name {
+  font-size: 0.875rem;
+}
+.matchup-rank-player-team {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+.matchup-rank-player-pts {
+  margin-left: auto;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.matchup-rank-total {
+  margin: 0;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.9375rem;
+  font-weight: 700;
+}
+
 .page a[href] {
   display: inline-block;
   margin-bottom: 1rem;

@@ -128,6 +128,19 @@ function parseScore(s: string | undefined): number | undefined {
   return isNaN(n) ? undefined : n;
 }
 
+/** Normalize API date to YYYY-MM-DD for round grouping */
+function normalizeDate(dateStr: string | undefined): string | null {
+  if (!dateStr || !dateStr.trim()) return null;
+  const s = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export async function fetchEvents(count = 60): Promise<EventItemNorm[]> {
   const data = await apiGet<V2Wrapper<V2SegmentsData<V2EventSegment>>>('v2/events');
   const segments = data.data?.segments ?? [];
@@ -401,16 +414,38 @@ export interface PerPlayerMapPointsResult {
   mapBreakdowns: Record<string, MapPointsBreakdown[]>;
 }
 
+/**
+ * @param selectedRoundIndices 1-based round indices (Match 1, 2, 3...). Rounds are derived from
+ * unique match dates. Empty = include all scoreable matches.
+ */
 export async function fetchPerPlayerMapPoints(
   eventId: string,
-  matchFilter?: MatchFilter
+  options?: { matchFilter?: MatchFilter; selectedRoundIndices?: number[] }
 ): Promise<PerPlayerMapPointsResult> {
   const matches = await fetchEventMatches(eventId, 50);
+  const withTeams = matches.filter((m) => m.team1Name !== 'TBD' && m.team2Name !== 'TBD');
+  const dateSet = new Set<string>();
+  for (const m of withTeams) {
+    const d = normalizeDate(m.date);
+    if (d) dateSet.add(d);
+  }
+  const sortedDates = Array.from(dateSet).sort();
+  const singleRound = sortedDates.length === 0 && withTeams.length > 0;
+  const getRoundIndex = (m: EventMatchItemNorm): number => {
+    if (singleRound) return 1;
+    const d = normalizeDate(m.date);
+    if (!d) return 0;
+    const idx = sortedDates.indexOf(d);
+    return idx >= 0 ? idx + 1 : 0;
+  };
+
   const scoreableStatuses: MatchStatus[] = ['completed', 'live', 'ongoing'];
-  let toScore = matches.filter(
-    (m) => scoreableStatuses.includes(m.status) && m.team1Name !== 'TBD' && m.team2Name !== 'TBD'
-  );
-  if (matchFilter) toScore = toScore.filter(matchFilter);
+  let toScore = withTeams.filter((m) => scoreableStatuses.includes(m.status));
+  if (options?.selectedRoundIndices && options.selectedRoundIndices.length > 0) {
+    const set = new Set(options.selectedRoundIndices);
+    toScore = toScore.filter((m) => set.has(getRoundIndex(m)));
+  }
+  if (options?.matchFilter) toScore = toScore.filter(options.matchFilter);
 
   const mapPoints: Record<string, number[]> = {};
   const mapBreakdowns: Record<string, MapPointsBreakdown[]> = {};
@@ -504,5 +539,5 @@ export async function fetchPerPlayerMapPointsForPhase(
   eventId: string,
   phase: string
 ): Promise<PerPlayerMapPointsResult> {
-  return fetchPerPlayerMapPoints(eventId, phaseMatchFilter(phase));
+  return fetchPerPlayerMapPoints(eventId, { matchFilter: phaseMatchFilter(phase) });
 }

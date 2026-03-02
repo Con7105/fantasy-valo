@@ -25,7 +25,7 @@ import { fantasyScoring } from '../scoring';
 const SELECTED_EVENT_ID_KEY = 'selectedEventId';
 const SELECTED_EVENT_NAME_KEY = 'selectedEventName';
 const ROSTER_KEY_PREFIX = 'fantasyRoster_';
-const SELECTED_DATES_PREFIX = 'selectedMatchDates_';
+const SELECTED_ROUNDS_PREFIX = 'selectedMatchRounds_';
 const ROSTER_SIZE = 5;
 const MAX_PER_TEAM = 2;
 
@@ -64,25 +64,25 @@ function saveRoster(eventId: string, roster: FantasyRosterSlot[]): void {
   localStorage.setItem(`${ROSTER_KEY_PREFIX}${eventId}`, JSON.stringify(roster));
 }
 
-function loadSelectedMatchDates(eventId: string): string[] {
+function loadSelectedMatchIndices(eventId: string): number[] {
   try {
-    const raw = localStorage.getItem(`${SELECTED_DATES_PREFIX}${eventId}`);
+    const raw = localStorage.getItem(`${SELECTED_ROUNDS_PREFIX}${eventId}`);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
-    return Array.isArray(parsed) && parsed.every((x) => typeof x === 'string') ? parsed : [];
+    return Array.isArray(parsed) && parsed.every((x) => typeof x === 'number') ? parsed : [];
   } catch {
     return [];
   }
 }
 
-function saveSelectedMatchDates(eventId: string, dates: string[]): void {
-  localStorage.setItem(`${SELECTED_DATES_PREFIX}${eventId}`, JSON.stringify(dates));
+function saveSelectedMatchIndices(eventId: string, indices: number[]): void {
+  localStorage.setItem(`${SELECTED_ROUNDS_PREFIX}${eventId}`, JSON.stringify(indices));
 }
 
 interface AppState {
   selectedEventId: string | null;
   selectedEventName: string | null;
-  selectedMatchDates: string[];
+  selectedMatchIndices: number[];
   events: EventItemNorm[];
   eventMatches: EventMatchItemNorm[];
   eventStats: EventPlayerStatNorm[];
@@ -96,7 +96,7 @@ interface AppState {
 
 interface AppContextValue extends AppState {
   selectEvent: (id: string, name: string) => void;
-  setSelectedMatchDates: (dates: string[]) => void;
+  setSelectedMatchIndices: (indices: number[]) => void;
   loadEvents: () => Promise<void>;
   loadEventMatches: () => Promise<void>;
   setError: (msg: string | null) => void;
@@ -122,7 +122,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return {
       selectedEventId: eventId,
       selectedEventName: eventName,
-      selectedMatchDates: eventId ? loadSelectedMatchDates(eventId) : [],
+      selectedMatchIndices: eventId ? loadSelectedMatchIndices(eventId) : [],
       events: [],
       eventMatches: [],
       eventStats: [],
@@ -142,7 +142,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ...prev,
       selectedEventId: id,
       selectedEventName: name,
-      selectedMatchDates: loadSelectedMatchDates(id),
+      selectedMatchIndices: loadSelectedMatchIndices(id),
       eventMatches: [],
       roster: loadRoster(id),
       eventStats: [],
@@ -151,11 +151,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const setSelectedMatchDates = useCallback((dates: string[]) => {
+  const setSelectedMatchIndices = useCallback((indices: number[]) => {
     setState((prev) => {
       const id = prev.selectedEventId;
-      if (id) saveSelectedMatchDates(id, dates);
-      return { ...prev, selectedMatchDates: dates };
+      if (id) saveSelectedMatchIndices(id, indices);
+      return { ...prev, selectedMatchIndices: indices };
     });
   }, []);
 
@@ -208,19 +208,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const loadFantasyData = useCallback(async () => {
     const id = state.selectedEventId;
     if (!id) return;
-    const selectedDates = state.selectedMatchDates;
-    const matchFilter =
-      selectedDates.length === 0
+    const selectedIndices = state.selectedMatchIndices;
+    const options =
+      selectedIndices.length === 0
         ? undefined
-        : (m: EventMatchItemNorm) => {
-            const d = normalizeMatchDate(m.date);
-            return !d || selectedDates.includes(d);
-          };
+        : { selectedRoundIndices: selectedIndices };
     try {
       const [matches, stats, pointsResult] = await Promise.all([
         fetchEventMatches(id, 50),
         fetchEventStats(id),
-        fetchPerPlayerMapPoints(id, matchFilter),
+        fetchPerPlayerMapPoints(id, options),
       ]);
       const hasStarted = matches.some(
         (m) =>
@@ -242,7 +239,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         errorMessage: e instanceof Error ? e.message : String(e),
       }));
     }
-  }, [state.selectedEventId, state.selectedMatchDates]);
+  }, [state.selectedEventId, state.selectedMatchIndices]);
 
   const addPlayer = useCallback(
     (stat: EventPlayerStatNorm) => {
@@ -325,7 +322,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     () => ({
       ...state,
       selectEvent,
-      setSelectedMatchDates,
+      setSelectedMatchIndices,
       loadEvents,
       loadEventMatches,
       setError,
@@ -338,7 +335,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       isRosterFull,
       loadFantasyData,
     }),
-    [state, selectEvent, setSelectedMatchDates, loadEvents, loadEventMatches, setError, clearError, addPlayer, removePlayer, pointsForPlayer, getPlayerBreakdown, totalPoints, isRosterFull, loadFantasyData]
+    [state, selectEvent, setSelectedMatchIndices, loadEvents, loadEventMatches, setError, clearError, addPlayer, removePlayer, pointsForPlayer, getPlayerBreakdown, totalPoints, isRosterFull, loadFantasyData]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

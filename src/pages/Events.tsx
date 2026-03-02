@@ -31,7 +31,7 @@ export function Events() {
       if (d) dateSet.add(d);
     }
     const sortedDates = Array.from(dateSet).sort();
-    const count = Math.max(sortedDates.length, eventMatches.length > 0 ? 1 : 0);
+    const count = Math.max(sortedDates.length, eventMatches.length > 0 ? 2 : 0);
     const getRound = (m: EventMatchItemNorm): number => {
       const d = normalizeMatchDate(m.date);
       if (count === 0) return 0;

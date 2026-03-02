@@ -18,7 +18,7 @@ const STAT_OPTIONS: { key: NumericStatKey; label: string }[] = [
   { key: 'rating', label: 'Rating' },
 ];
 
-type SortOption = 'none' | 'avg-desc' | NumericStatKey | 'custom';
+type SortOption = 'avg-desc' | NumericStatKey | 'custom';
 
 function getStatValue(stat: EventPlayerStatNorm, key: NumericStatKey): number {
   const v = stat[key];
@@ -41,7 +41,6 @@ function sortStats(
   pointsForPlayer: (name: string, team: string) => number | null,
   customRatio?: { num: NumericStatKey; den: NumericStatKey }
 ): EventPlayerStatNorm[] {
-  if (sortBy === 'none') return stats;
   return [...stats].sort((a, b) => {
     if (sortBy === 'avg-desc') {
       const ptsA = pointsForPlayer(a.playerName, a.teamName) ?? 0;
@@ -66,6 +65,31 @@ function sortStats(
   });
 }
 
+function getSingleStatDisplay(
+  stat: EventPlayerStatNorm,
+  sortBy: SortOption,
+  customRatio: { num: NumericStatKey; den: NumericStatKey } | undefined,
+  mapCount: number
+): { label: string; value: string } | null {
+  if (sortBy === 'avg-desc') return null;
+  const avg = (v: number) => (mapCount > 0 ? v / mapCount : 0);
+  if (sortBy === 'custom' && customRatio) {
+    const den = getStatValue(stat, customRatio.den);
+    const num = getStatValue(stat, customRatio.num);
+    const ratio = den !== 0 ? num / den : (num > 0 ? 1e9 : 0);
+    const numLabel = STAT_OPTIONS.find((o) => o.key === customRatio.num)?.label ?? customRatio.num;
+    const denLabel = STAT_OPTIONS.find((o) => o.key === customRatio.den)?.label ?? customRatio.den;
+    return { label: `${numLabel} / ${denLabel}`, value: ratio.toFixed(2) };
+  }
+  const opt = STAT_OPTIONS.find((o) => o.key === sortBy);
+  if (!opt) return null;
+  const v = getStatValue(stat, sortBy as NumericStatKey);
+  if (['acs', 'adr', 'kdRatio', 'rating'].includes(sortBy)) {
+    return { label: opt.label, value: v.toFixed(2) };
+  }
+  return { label: opt.label, value: `${v} (${avg(v).toFixed(1)}/map)` };
+}
+
 export function Stats() {
   const {
     selectedEventId,
@@ -80,7 +104,7 @@ export function Stats() {
     teamName: string;
   } | null>(null);
   const [loading, setLoading] = useState(false);
-  const [sortBy, setSortBy] = useState<SortOption>('none');
+  const [sortBy, setSortBy] = useState<SortOption>('avg-desc');
   const [customNum, setCustomNum] = useState<NumericStatKey>('kills');
   const [customDen, setCustomDen] = useState<NumericStatKey>('deaths');
 
@@ -115,7 +139,7 @@ export function Stats() {
     ).map((t) => t.label);
     const breakdowns = getPlayerBreakdown(stat.playerName, stat.teamName);
     const mapCount = breakdowns?.length ?? 1;
-    const avg = (v: number) => (mapCount > 0 ? v / mapCount : 0);
+    const singleStat = getSingleStatDisplay(stat, sortBy, customRatio, mapCount);
     return (
       <li key={`${stat.playerName}-${stat.teamName}`} className="roster-slot stats-roster-slot">
         <button
@@ -130,16 +154,11 @@ export function Stats() {
             <span className="user-team-labels"> {userTeamLabels.join(', ')}</span>
           )}
         </button>
-        <div className="stats-row-raw" aria-label="Actual stats from maps played">
-          <span className="stats-raw-item" title={`Total: ${stat.kills} · Per map: ${avg(stat.kills).toFixed(1)}`}>K {stat.kills} <span className="stats-raw-avg">({avg(stat.kills).toFixed(1)})</span></span>
-          <span className="stats-raw-item" title={`Total: ${stat.deaths} · Per map: ${avg(stat.deaths).toFixed(1)}`}>D {stat.deaths} <span className="stats-raw-avg">({avg(stat.deaths).toFixed(1)})</span></span>
-          <span className="stats-raw-item" title={`Total: ${stat.assists} · Per map: ${avg(stat.assists).toFixed(1)}`}>A {stat.assists} <span className="stats-raw-avg">({avg(stat.assists).toFixed(1)})</span></span>
-          <span className="stats-raw-item" title={`First kills total: ${stat.firstKills} · Per map: ${avg(stat.firstKills).toFixed(1)}`}>FK {stat.firstKills}</span>
-          <span className="stats-raw-item" title={`First deaths total: ${stat.firstDeaths} · Per map: ${avg(stat.firstDeaths).toFixed(1)}`}>FD {stat.firstDeaths}</span>
-          <span className="stats-raw-item" title={`ACS avg: ${stat.acs.toFixed(1)}`}>ACS {stat.acs.toFixed(1)}</span>
-          <span className="stats-raw-item" title={`ADR avg: ${stat.adr.toFixed(1)}`}>ADR {stat.adr.toFixed(1)}</span>
-          <span className="stats-raw-item" title={`K/D ratio: ${stat.kdRatio.toFixed(2)}`}>K/D {stat.kdRatio.toFixed(2)}</span>
-        </div>
+        {singleStat && (
+          <div className="stats-row-raw stats-row-single" aria-label={singleStat.label}>
+            <span className="stats-raw-item">{singleStat.label}: {singleStat.value}</span>
+          </div>
+        )}
         {breakdowns && breakdowns.length > 0 ? (
           <span className="roster-map-pts" title={`Map points: ${breakdowns.map((b, i) => `Map ${i + 1}: ${b.total.toFixed(1)}`).join(', ')}`}>
             {breakdowns.map((b, i) => (
@@ -189,7 +208,6 @@ export function Stats() {
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortOption)}
           >
-            <option value="none">None</option>
             <option value="avg-desc">Average points</option>
             {STAT_OPTIONS.map((o) => (
               <option key={o.key} value={o.key}>{o.label}</option>

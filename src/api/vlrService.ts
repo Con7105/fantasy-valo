@@ -128,19 +128,6 @@ function parseScore(s: string | undefined): number | undefined {
   return isNaN(n) ? undefined : n;
 }
 
-/** Normalize API date to YYYY-MM-DD for round grouping */
-function normalizeDate(dateStr: string | undefined): string | null {
-  if (!dateStr || !dateStr.trim()) return null;
-  const s = dateStr.trim();
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return null;
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
 export async function fetchEvents(count = 60): Promise<EventItemNorm[]> {
   const data = await apiGet<V2Wrapper<V2SegmentsData<V2EventSegment>>>('v2/events');
   const segments = data.data?.segments ?? [];

@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { useApp, normalizeMatchDate } from '../context/AppContext';
-import type { EventMatchItemNorm } from '../types';
+import { useApp } from '../context/AppContext';
 
 export function Events() {
   const {
@@ -25,24 +24,25 @@ export function Events() {
   };
 
   const { roundCount, roundLabels } = useMemo(() => {
-    const dateSet = new Set<string>();
-    for (const m of eventMatches) {
-      const d = normalizeMatchDate(m.date);
-      if (d) dateSet.add(d);
+    const withTeams = eventMatches.filter((m) => m.team1Name !== 'TBD' && m.team2Name !== 'TBD');
+    const teamToMatchIds: Record<string, string[]> = {};
+    for (const m of withTeams) {
+      const t1 = m.team1Name;
+      const t2 = m.team2Name;
+      if (!teamToMatchIds[t1]) teamToMatchIds[t1] = [];
+      if (!teamToMatchIds[t1].includes(m.id)) teamToMatchIds[t1].push(m.id);
+      if (!teamToMatchIds[t2]) teamToMatchIds[t2] = [];
+      if (!teamToMatchIds[t2].includes(m.id)) teamToMatchIds[t2].push(m.id);
     }
-    const sortedDates = Array.from(dateSet).sort();
-    const count = Math.max(sortedDates.length, eventMatches.length > 0 ? 2 : 0);
-    const getRound = (m: EventMatchItemNorm): number => {
-      const d = normalizeMatchDate(m.date);
-      if (count === 0) return 0;
-      if (!d && count === 1) return 1;
-      if (!d) return 0;
-      const idx = sortedDates.indexOf(d);
-      return idx >= 0 ? idx + 1 : 0;
-    };
+    const counts = Object.values(teamToMatchIds).map((arr) => arr.length);
+    const count = counts.length > 0 ? Math.max(...counts, 2) : 0;
     const labels: string[] = [];
     for (let i = 1; i <= count; i++) {
-      const hasCompleted = eventMatches.some((m) => getRound(m) === i && m.status === 'completed');
+      const hasCompleted = withTeams.some((m) => {
+        const r1 = (teamToMatchIds[m.team1Name]?.indexOf(m.id) ?? -1) + 1;
+        const r2 = (teamToMatchIds[m.team2Name]?.indexOf(m.id) ?? -1) + 1;
+        return (r1 === i || r2 === i) && m.status === 'completed';
+      });
       labels.push(hasCompleted ? `Match ${i} (completed)` : `Match ${i}`);
     }
     return { roundCount: count, roundLabels: labels };
@@ -77,7 +77,7 @@ export function Events() {
             <section className="section score-period-section">
               <h2>Score period</h2>
               <p className="caption">
-                Include points from each team&apos;s Match 1, Match 2, etc. Options are based on how many match days are scheduled. Use &quot;Refresh points&quot; on Teams or Matchups after changing.
+                Include points from each team&apos;s Match 1, Match 2, etc. (A match is 2–3 maps; each option is per team by match ID.) Use &quot;Refresh points&quot; on Teams or Matchups after changing.
               </p>
               <div className="week-selector">
                 <button

@@ -415,8 +415,8 @@ export interface PerPlayerMapPointsResult {
 }
 
 /**
- * @param selectedRoundIndices 1-based round indices (Match 1, 2, 3...). Rounds are derived from
- * unique match dates. Empty = include all scoreable matches.
+ * @param selectedRoundIndices 1-based match indices per team (Match 1, 2, 3...). Each team's
+ * matches are ordered by match_id in event order. Empty = include all scoreable matches.
  */
 export async function fetchPerPlayerMapPoints(
   eventId: string,
@@ -424,38 +424,40 @@ export async function fetchPerPlayerMapPoints(
 ): Promise<PerPlayerMapPointsResult> {
   const matches = await fetchEventMatches(eventId, 50);
   const withTeams = matches.filter((m) => m.team1Name !== 'TBD' && m.team2Name !== 'TBD');
-  const dateSet = new Set<string>();
-  for (const m of withTeams) {
-    const d = normalizeDate(m.date);
-    if (d) dateSet.add(d);
-  }
-  const sortedDates = Array.from(dateSet).sort();
-  const singleRound = sortedDates.length === 0 && withTeams.length > 0;
-  const getRoundIndex = (m: EventMatchItemNorm): number => {
-    if (singleRound) return 1;
-    const d = normalizeDate(m.date);
-    if (!d) return 0;
-    const idx = sortedDates.indexOf(d);
-    return idx >= 0 ? idx + 1 : 0;
-  };
-
   const scoreableStatuses: MatchStatus[] = ['completed', 'live', 'ongoing'];
-  let toScore = withTeams.filter((m) => scoreableStatuses.includes(m.status));
-  if (options?.selectedRoundIndices && options.selectedRoundIndices.length > 0) {
-    const set = new Set(options.selectedRoundIndices);
-    toScore = toScore.filter((m) => set.has(getRoundIndex(m)));
+  const toScore = withTeams.filter((m) => scoreableStatuses.includes(m.status));
+  let toScoreFiltered = toScore;
+  if (options?.matchFilter) toScoreFiltered = toScoreFiltered.filter(options.matchFilter);
+
+  const teamToMatchIds: Record<string, string[]> = {};
+  for (const m of toScoreFiltered) {
+    const t1 = m.team1Name;
+    const t2 = m.team2Name;
+    if (!teamToMatchIds[t1]) teamToMatchIds[t1] = [];
+    if (!teamToMatchIds[t1].includes(m.id)) teamToMatchIds[t1].push(m.id);
+    if (!teamToMatchIds[t2]) teamToMatchIds[t2] = [];
+    if (!teamToMatchIds[t2].includes(m.id)) teamToMatchIds[t2].push(m.id);
   }
-  if (options?.matchFilter) toScore = toScore.filter(options.matchFilter);
+
+  const selectedSet =
+    options?.selectedRoundIndices && options.selectedRoundIndices.length > 0
+      ? new Set(options.selectedRoundIndices)
+      : null;
 
   const mapPoints: Record<string, number[]> = {};
   const mapBreakdowns: Record<string, MapPointsBreakdown[]> = {};
 
-  for (const match of toScore) {
+  for (const match of toScoreFiltered) {
     const detail = await fetchMatchDetail(match.id);
     if (!detail) continue;
 
     const team1Name = detail.teams?.[0]?.name ?? match.team1Name;
     const team2Name = (detail.teams?.length ?? 0) > 1 ? detail.teams![1].name : match.team2Name;
+
+    const idx1 = teamToMatchIds[team1Name]?.indexOf(match.id) ?? -1;
+    const idx2 = teamToMatchIds[team2Name]?.indexOf(match.id) ?? -1;
+    const roundIndexTeam1 = idx1 >= 0 ? idx1 + 1 : 0;
+    const roundIndexTeam2 = idx2 >= 0 ? idx2 + 1 : 0;
     const s1 = parseScore(detail.teams?.[0]?.score);
     const s2 = (detail.teams?.length ?? 0) > 1 ? parseScore(detail.teams?.[1]?.score) : undefined;
     let winningTeamName: string | null = null;
@@ -490,6 +492,11 @@ export async function fetchPerPlayerMapPoints(
       if (!mapPlayed) continue;
 
       for (const input of allInputs) {
+        if (selectedSet) {
+          const playerRoundIndex = input.team === team1Name ? roundIndexTeam1 : roundIndexTeam2;
+          if (playerRoundIndex === 0 || !selectedSet.has(playerRoundIndex)) continue;
+        }
+
         const winBonus =
           match.status === 'completed' && winningTeamName === input.team ? winBonusPerMap : 0;
         const breakdown = fantasyScoring.pointsForMapBreakdown(input, allInputs, winBonus);

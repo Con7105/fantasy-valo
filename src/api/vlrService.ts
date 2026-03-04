@@ -242,83 +242,22 @@ function normalizePlayerKey(raw: string): string {
   return raw.replace(/\s/g, '').toLowerCase();
 }
 
-/** All possible lookup keys for an advanced_stats "player" value.
- *  API can be "stax", "stax T1", or "marteenM8" (handle + team abbrev, no space).
- *  We store under full normalized key and under handle-only so map stats can find by name.
- */
-function advancedStatPlayerKeys(raw: string): string[] {
-  const keys = new Set<string>();
-  const normalizedFull = normalizePlayerKey(raw);
-  keys.add(normalizedFull);
-
-  // Split on spaces first: "f0rsakeN PRX" -> ["f0rsakeN", "PRX"]
-  const spaceTokens = raw.split(/\s+/).filter(Boolean);
-  for (const tok of spaceTokens) {
-    keys.add(normalizePlayerKey(tok));
-  }
-
-  // For tokens like "marteenM8" or "f0rsakeNPRX" (no space), also add a variant
-  // that strips a trailing block of 2+ uppercase/digit chars, treating that as team tag.
-  const boundaryRegex = /^(.+?)([A-Z0-9]{2,})$/;
-  for (const tok of spaceTokens.length ? spaceTokens : [raw]) {
-    const m = tok.match(boundaryRegex);
-    if (m && m[1]) {
-      keys.add(normalizePlayerKey(m[1]));
-    }
-  }
-
-  return [...keys];
-}
-
-/** Build map: normalized player id -> ClutchCounts. Match-level stats.
- *  Col1 ignored; Col2–5 = 2K–5K; Col6–10 = 1v1–1v5. Store under all key variants.
- */
-function buildClutchMapFromAdvancedStats(entries: V2AdvancedStatEntry[]): Map<string, ClutchCounts> {
-  const map = new Map<string, ClutchCounts>();
-  for (const e of entries ?? []) {
+/** Find the advanced_stats row for a player by substring match on name (case/space-insensitive). */
+function findAdvancedStatsEntryForPlayer(
+  entries: V2AdvancedStatEntry[] | undefined,
+  playerName: string
+): V2AdvancedStatEntry | undefined {
+  if (!entries || !entries.length) return undefined;
+  const normName = normalizePlayerKey(playerName);
+  for (const e of entries) {
     const raw = (e.player ?? '').trim();
     if (!raw) continue;
-    const clutches = clutchesFromAdvancedStat(e);
-    const hasAny =
-      clutches.clutch1v1 +
-        clutches.clutch1v2 +
-        clutches.clutch1v3 +
-        clutches.clutch1v4 +
-        clutches.clutch1v5 >
-      0;
-    if (!hasAny) continue;
-    for (const k of advancedStatPlayerKeys(raw)) {
-      map.set(k, clutches);
+    const normPlayer = normalizePlayerKey(raw);
+    if (normPlayer.includes(normName) || normName.includes(normPlayer)) {
+      return e;
     }
   }
-  return map;
-}
-
-/** Build map: normalized player id -> MultikillCounts. Match-level stats.
- *  Col2–5 = 2K, 3K, 4K, 5K. Store under all key variants.
- */
-function buildMultikillMapFromAdvancedStats(
-  entries: V2AdvancedStatEntry[]
-): Map<string, MultikillCounts> {
-  const map = new Map<string, MultikillCounts>();
-  for (const e of entries ?? []) {
-    const raw = (e.player ?? '').trim();
-    if (!raw) continue;
-    const multikills = multikillsFromAdvancedStat(e);
-    const hasAny = multikills.k2 + multikills.k3 + multikills.k4 + multikills.k5 > 0;
-    if (!hasAny) continue;
-    for (const k of advancedStatPlayerKeys(raw)) {
-      map.set(k, multikills);
-    }
-  }
-  return map;
-}
-
-/** Normalize player keys for lookup from map stats. */
-function playerKeyForClutchLookup(name: string, team: string): string[] {
-  const full = normalizePlayerKey(`${name} ${team}`);
-  const playerOnly = normalizePlayerKey(name);
-  return [full, playerOnly];
+  return undefined;
 }
 
 /** Clutch points from counts: +1 per X (1v1=1, 1v2=2, ...). */
@@ -555,8 +494,6 @@ export async function fetchPerPlayerMapPoints(
 
     const isCompleted = match.status === 'completed';
     const advancedStats = isCompleted ? (detail.performance?.advanced_stats ?? []) : [];
-    const clutchMap = buildClutchMapFromAdvancedStats(advancedStats);
-    const multikillMap = buildMultikillMapFromAdvancedStats(advancedStats);
 
     for (const map of maps) {
       const t1 = map.players?.team1 ?? [];
@@ -586,17 +523,16 @@ export async function fetchPerPlayerMapPoints(
         const breakdown = fantasyScoring.pointsForMapBreakdown(input, allInputs, winBonus);
 
         if (isCompleted) {
-          const [fullKey, playerKey] = playerKeyForClutchLookup(input.name, input.team);
-          const matchClutches = clutchMap.get(fullKey) ?? clutchMap.get(playerKey);
-          if (matchClutches) {
+          const entry = findAdvancedStatsEntryForPlayer(advancedStats, input.name);
+          if (entry) {
+            const matchClutches = clutchesFromAdvancedStat(entry);
             const totalClutchPts = clutchPointsFromCounts(matchClutches);
             const clutchPerMap = totalClutchPts / numMaps;
             breakdown.total += clutchPerMap;
             breakdown.points.clutch += clutchPerMap;
             breakdown.stats.clutches = matchClutches;
-          }
-          const matchMultikills = multikillMap.get(fullKey) ?? multikillMap.get(playerKey);
-          if (matchMultikills) {
+
+            const matchMultikills = multikillsFromAdvancedStat(entry);
             const totalMultikillPts =
               (matchMultikills.k2 + matchMultikills.k3 + matchMultikills.k4 + matchMultikills.k5) * 1;
             const multikillPerMap = totalMultikillPts / numMaps;

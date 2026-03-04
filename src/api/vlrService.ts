@@ -240,35 +240,62 @@ function multikillsFromAdvancedStat(entry: V2AdvancedStatEntry): MultikillCounts
   };
 }
 
-/** Build map: normalized player id -> ClutchCounts. Match-level stats. */
+function normalizePlayerKey(raw: string): string {
+  return raw.replace(/\s/g, '').toLowerCase();
+}
+
+/** Build map: normalized player id -> ClutchCounts. Match-level stats.
+ *  The advanced_stats player field is sometimes just the handle (\"stax\")
+ *  and sometimes \"handle TEAM\" (\"stax T1\"). Store entries under both.
+ */
 function buildClutchMapFromAdvancedStats(entries: V2AdvancedStatEntry[]): Map<string, ClutchCounts> {
   const map = new Map<string, ClutchCounts>();
   for (const e of entries ?? []) {
-    const id = (e.player ?? '').trim().replace(/\s/g, '').toLowerCase();
-    if (!id) continue;
+    const raw = (e.player ?? '').trim();
+    if (!raw) continue;
+    const [playerOnly] = raw.split(/\s+/);
+    const fullKey = normalizePlayerKey(raw);
+    const playerKey = normalizePlayerKey(playerOnly);
     const clutches = clutchesFromAdvancedStat(e);
-    const hasAny = clutches.clutch1v1 + clutches.clutch1v2 + clutches.clutch1v3 + clutches.clutch1v4 + clutches.clutch1v5 > 0;
-    if (hasAny) map.set(id, clutches);
+    const hasAny =
+      clutches.clutch1v1 +
+        clutches.clutch1v2 +
+        clutches.clutch1v3 +
+        clutches.clutch1v4 +
+        clutches.clutch1v5 >
+      0;
+    if (!hasAny) continue;
+    map.set(fullKey, clutches);
+    map.set(playerKey, clutches);
   }
   return map;
 }
 
 /** Build map: normalized player id -> MultikillCounts. Match-level stats. */
-function buildMultikillMapFromAdvancedStats(entries: V2AdvancedStatEntry[]): Map<string, MultikillCounts> {
+function buildMultikillMapFromAdvancedStats(
+  entries: V2AdvancedStatEntry[]
+): Map<string, MultikillCounts> {
   const map = new Map<string, MultikillCounts>();
   for (const e of entries ?? []) {
-    const id = (e.player ?? '').trim().replace(/\s/g, '').toLowerCase();
-    if (!id) continue;
+    const raw = (e.player ?? '').trim();
+    if (!raw) continue;
+    const [playerOnly] = raw.split(/\s+/);
+    const fullKey = normalizePlayerKey(raw);
+    const playerKey = normalizePlayerKey(playerOnly);
     const multikills = multikillsFromAdvancedStat(e);
     const hasAny = multikills.k2 + multikills.k3 + multikills.k4 + multikills.k5 > 0;
-    if (hasAny) map.set(id, multikills);
+    if (!hasAny) continue;
+    map.set(fullKey, multikills);
+    map.set(playerKey, multikills);
   }
   return map;
 }
 
-/** Normalize player key for lookup: "NoMan" + "XLG" -> "nomanxlg". */
-function playerKeyForClutchLookup(name: string, team: string): string {
-  return (name + team).replace(/\s/g, '').toLowerCase();
+/** Normalize player keys for lookup from map stats. */
+function playerKeyForClutchLookup(name: string, team: string): string[] {
+  const full = normalizePlayerKey(`${name} ${team}`);
+  const playerOnly = normalizePlayerKey(name);
+  return [full, playerOnly];
 }
 
 /** Clutch points from counts: +1 per X (1v1=1, 1v2=2, ...). */
@@ -536,8 +563,8 @@ export async function fetchPerPlayerMapPoints(
         const breakdown = fantasyScoring.pointsForMapBreakdown(input, allInputs, winBonus);
 
         if (isCompleted) {
-          const lookupKey = playerKeyForClutchLookup(input.name, input.team);
-          const matchClutches = clutchMap.get(lookupKey);
+          const [fullKey, playerKey] = playerKeyForClutchLookup(input.name, input.team);
+          const matchClutches = clutchMap.get(fullKey) ?? clutchMap.get(playerKey);
           if (matchClutches) {
             const totalClutchPts = clutchPointsFromCounts(matchClutches);
             const clutchPerMap = totalClutchPts / numMaps;
@@ -545,7 +572,7 @@ export async function fetchPerPlayerMapPoints(
             breakdown.points.clutch += clutchPerMap;
             breakdown.stats.clutches = matchClutches;
           }
-          const matchMultikills = multikillMap.get(lookupKey);
+          const matchMultikills = multikillMap.get(fullKey) ?? multikillMap.get(playerKey);
           if (matchMultikills) {
             const totalMultikillPts =
               (matchMultikills.k2 + matchMultikills.k3 + matchMultikills.k4 + matchMultikills.k5) * 1;

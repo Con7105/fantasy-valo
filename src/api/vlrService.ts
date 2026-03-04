@@ -217,24 +217,26 @@ function getClutch(p: V2PlayerStat, key: '1v1' | '1v2' | '1v3' | '1v4' | '1v5'):
   return parseNum(val as string | number | undefined);
 }
 
-/** Keys 1–4 = 2K,3K,4K,5K; 5–9 = 1v1,1v2,1v3,1v4,1v5 (VLR advanced_stats column order). */
+/** Keys 2–5 = 2K,3K,4K,5K; 6–10 = 1v1,1v2,1v3,1v4,1v5 (shifted one column vs. previous guess). */
 function clutchesFromAdvancedStat(entry: V2AdvancedStatEntry): ClutchCounts {
   return {
-    clutch1v1: parseNum(entry['5']),
-    clutch1v2: parseNum(entry['6']),
-    clutch1v3: parseNum(entry['7']),
-    clutch1v4: parseNum(entry['8']),
-    clutch1v5: parseNum(entry['9']),
+    // 1v1–1v5 are in columns 6–10
+    clutch1v1: parseNum(entry['6']),
+    clutch1v2: parseNum(entry['7']),
+    clutch1v3: parseNum(entry['8']),
+    clutch1v4: parseNum(entry['9']),
+    clutch1v5: parseNum(entry['10']),
   };
 }
 
-/** Keys 1–4 in advanced_stats = 2K, 3K, 4K, 5K. +1 point per multikill. */
+/** Keys 2–5 in advanced_stats = 2K, 3K, 4K, 5K. +1 point per multikill. */
 function multikillsFromAdvancedStat(entry: V2AdvancedStatEntry): MultikillCounts {
   return {
-    k2: parseNum(entry['1']),
-    k3: parseNum(entry['2']),
-    k4: parseNum(entry['3']),
-    k5: parseNum(entry['4']),
+    // 2K–5K are in columns 2–5
+    k2: parseNum(entry['2']),
+    k3: parseNum(entry['3']),
+    k4: parseNum(entry['4']),
+    k5: parseNum(entry['5']),
   };
 }
 

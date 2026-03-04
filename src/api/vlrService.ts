@@ -247,16 +247,26 @@ function normalizePlayerKey(raw: string): string {
  *  We store under full normalized key and under handle-only so map stats can find by name.
  */
 function advancedStatPlayerKeys(raw: string): string[] {
-  const normalized = normalizePlayerKey(raw);
-  const keys = new Set<string>([normalized]);
-  const withSpace = raw.split(/\s+/);
-  if (withSpace.length > 1) {
-    keys.add(normalizePlayerKey(withSpace[0]));
-  } else {
-    // No space: might be "marteenM8" -> also key by "marteen" (strip trailing uppercase/digits)
-    const handleOnly = raw.replace(/[A-Z0-9]+$/, '').toLowerCase();
-    if (handleOnly) keys.add(handleOnly);
+  const keys = new Set<string>();
+  const normalizedFull = normalizePlayerKey(raw);
+  keys.add(normalizedFull);
+
+  // Split on spaces first: "f0rsakeN PRX" -> ["f0rsakeN", "PRX"]
+  const spaceTokens = raw.split(/\s+/).filter(Boolean);
+  for (const tok of spaceTokens) {
+    keys.add(normalizePlayerKey(tok));
   }
+
+  // For tokens like "marteenM8" or "f0rsakeNPRX" (no space), also add a variant
+  // that strips a trailing block of 2+ uppercase/digit chars, treating that as team tag.
+  const boundaryRegex = /^(.+?)([A-Z0-9]{2,})$/;
+  for (const tok of spaceTokens.length ? spaceTokens : [raw]) {
+    const m = tok.match(boundaryRegex);
+    if (m && m[1]) {
+      keys.add(normalizePlayerKey(m[1]));
+    }
+  }
+
   return [...keys];
 }
 

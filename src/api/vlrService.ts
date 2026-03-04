@@ -217,10 +217,9 @@ function getClutch(p: V2PlayerStat, key: '1v1' | '1v2' | '1v3' | '1v4' | '1v5'):
   return parseNum(val as string | number | undefined);
 }
 
-/** Keys 2–5 = 2K,3K,4K,5K; 6–10 = 1v1,1v2,1v3,1v4,1v5 (shifted one column vs. previous guess). */
+/** Advanced stats columns: Col1 ignored; Col2–5 = 2K–5K; Col6–10 = 1v1–1v5 clutches. */
 function clutchesFromAdvancedStat(entry: V2AdvancedStatEntry): ClutchCounts {
   return {
-    // 1v1–1v5 are in columns 6–10
     clutch1v1: parseNum(entry['6']),
     clutch1v2: parseNum(entry['7']),
     clutch1v3: parseNum(entry['8']),
@@ -229,10 +228,9 @@ function clutchesFromAdvancedStat(entry: V2AdvancedStatEntry): ClutchCounts {
   };
 }
 
-/** Keys 2–5 in advanced_stats = 2K, 3K, 4K, 5K. +1 point per multikill. */
+/** Advanced stats columns: Col2 = 2K, Col3 = 3K, Col4 = 4K, Col5 = 5K. Col1 ignored. */
 function multikillsFromAdvancedStat(entry: V2AdvancedStatEntry): MultikillCounts {
   return {
-    // 2K–5K are in columns 2–5
     k2: parseNum(entry['2']),
     k3: parseNum(entry['3']),
     k4: parseNum(entry['4']),
@@ -244,18 +242,32 @@ function normalizePlayerKey(raw: string): string {
   return raw.replace(/\s/g, '').toLowerCase();
 }
 
+/** All possible lookup keys for an advanced_stats "player" value.
+ *  API can be "stax", "stax T1", or "marteenM8" (handle + team abbrev, no space).
+ *  We store under full normalized key and under handle-only so map stats can find by name.
+ */
+function advancedStatPlayerKeys(raw: string): string[] {
+  const normalized = normalizePlayerKey(raw);
+  const keys = new Set<string>([normalized]);
+  const withSpace = raw.split(/\s+/);
+  if (withSpace.length > 1) {
+    keys.add(normalizePlayerKey(withSpace[0]));
+  } else {
+    // No space: might be "marteenM8" -> also key by "marteen" (strip trailing uppercase/digits)
+    const handleOnly = raw.replace(/[A-Z0-9]+$/, '').toLowerCase();
+    if (handleOnly) keys.add(handleOnly);
+  }
+  return [...keys];
+}
+
 /** Build map: normalized player id -> ClutchCounts. Match-level stats.
- *  The advanced_stats player field is sometimes just the handle (\"stax\")
- *  and sometimes \"handle TEAM\" (\"stax T1\"). Store entries under both.
+ *  Col1 ignored; Col2–5 = 2K–5K; Col6–10 = 1v1–1v5. Store under all key variants.
  */
 function buildClutchMapFromAdvancedStats(entries: V2AdvancedStatEntry[]): Map<string, ClutchCounts> {
   const map = new Map<string, ClutchCounts>();
   for (const e of entries ?? []) {
     const raw = (e.player ?? '').trim();
     if (!raw) continue;
-    const [playerOnly] = raw.split(/\s+/);
-    const fullKey = normalizePlayerKey(raw);
-    const playerKey = normalizePlayerKey(playerOnly);
     const clutches = clutchesFromAdvancedStat(e);
     const hasAny =
       clutches.clutch1v1 +
@@ -265,13 +277,16 @@ function buildClutchMapFromAdvancedStats(entries: V2AdvancedStatEntry[]): Map<st
         clutches.clutch1v5 >
       0;
     if (!hasAny) continue;
-    map.set(fullKey, clutches);
-    map.set(playerKey, clutches);
+    for (const k of advancedStatPlayerKeys(raw)) {
+      map.set(k, clutches);
+    }
   }
   return map;
 }
 
-/** Build map: normalized player id -> MultikillCounts. Match-level stats. */
+/** Build map: normalized player id -> MultikillCounts. Match-level stats.
+ *  Col2–5 = 2K, 3K, 4K, 5K. Store under all key variants.
+ */
 function buildMultikillMapFromAdvancedStats(
   entries: V2AdvancedStatEntry[]
 ): Map<string, MultikillCounts> {
@@ -279,14 +294,12 @@ function buildMultikillMapFromAdvancedStats(
   for (const e of entries ?? []) {
     const raw = (e.player ?? '').trim();
     if (!raw) continue;
-    const [playerOnly] = raw.split(/\s+/);
-    const fullKey = normalizePlayerKey(raw);
-    const playerKey = normalizePlayerKey(playerOnly);
     const multikills = multikillsFromAdvancedStat(e);
     const hasAny = multikills.k2 + multikills.k3 + multikills.k4 + multikills.k5 > 0;
     if (!hasAny) continue;
-    map.set(fullKey, multikills);
-    map.set(playerKey, multikills);
+    for (const k of advancedStatPlayerKeys(raw)) {
+      map.set(k, multikills);
+    }
   }
   return map;
 }

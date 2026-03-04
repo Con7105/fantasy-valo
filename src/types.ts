@@ -84,6 +84,14 @@ export interface MapPlayerStatsInput {
   clutches?: ClutchCounts;
 }
 
+/** Multikill counts: 2K, 3K, 4K, 5K (rounds with that many kills). +1 pt each. */
+export interface MultikillCounts {
+  k2: number;
+  k3: number;
+  k4: number;
+  k5: number;
+}
+
 /** Per-map point breakdown for display when selecting a player */
 export interface MapPointsBreakdown {
   /** Raw stat values on this map */
@@ -97,6 +105,7 @@ export interface MapPointsBreakdown {
     adr: number;
     hsPercent: number;
     clutches: ClutchCounts;
+    multikills: MultikillCounts;
   };
   /** Point contribution from each category */
   points: {
@@ -105,6 +114,7 @@ export interface MapPointsBreakdown {
     assists: number;
     firstDeaths: number;
     clutch: number;
+    multikill: number;
     acsBonus: number;
     kastBonus: number;
     adrBonus: number;

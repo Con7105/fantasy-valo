@@ -1,4 +1,9 @@
-import type { ClutchCounts, MapPlayerStatsInput, MapPointsBreakdown } from './types';
+import type {
+  ClutchCounts,
+  MapPlayerStatsInput,
+  MapPointsBreakdown,
+  MultikillCounts,
+} from './types';
 
 const pointsPerKill = 3.0;
 const pointsPerFirstKillBonus = 2.0;
@@ -6,8 +11,10 @@ const pointsPerAssist = 1.5;
 const pointsPerFirstDeath = -1.0;
 const pointsHighestOnMap = 2.0;
 const pointsTeamMatchWin = 3.0;
-/** Clutch: +1 per X (e.g. 1v2 = +2, 1v4 = +4). */
+/** Clutch: +1 per X (1v1 = +1, 1v2 = +2, 1v4 = +4, etc.). */
 const clutchPointsPerX = 1.0;
+/** Multikill: +1 per multikill round (2K, 3K, 4K, 5K each count as 1). */
+const pointsPerMultikill = 1.0;
 
 function clutchPoints(c: ClutchCounts | undefined): number {
   if (!c) return 0;
@@ -24,6 +31,15 @@ function emptyClutches(): ClutchCounts {
   return { clutch1v1: 0, clutch1v2: 0, clutch1v3: 0, clutch1v4: 0, clutch1v5: 0 };
 }
 
+function emptyMultikills(): MultikillCounts {
+  return { k2: 0, k3: 0, k4: 0, k5: 0 };
+}
+
+function multikillPoints(m: MultikillCounts | undefined): number {
+  if (!m) return 0;
+  return (m.k2 + m.k3 + m.k4 + m.k5) * pointsPerMultikill;
+}
+
 export const fantasyScoring = {
   pointsForMap(input: MapPlayerStatsInput, allPlayersOnMap: MapPlayerStatsInput[]): number {
     const b = this.pointsForMapBreakdown(input, allPlayersOnMap, 0);
@@ -37,14 +53,17 @@ export const fantasyScoring = {
   pointsForMapBreakdown(
     input: MapPlayerStatsInput,
     allPlayersOnMap: MapPlayerStatsInput[],
-    winBonus: number
+    winBonus: number,
+    extra?: { clutches?: ClutchCounts; multikills?: MultikillCounts }
   ): MapPointsBreakdown {
     const killsPts = input.kills * pointsPerKill;
     const firstKillsPts = input.firstKills * pointsPerFirstKillBonus;
     const assistsPts = input.assists * pointsPerAssist;
     const firstDeathsPts = input.firstDeaths * pointsPerFirstDeath;
-    const c = input.clutches ?? emptyClutches();
-    const clutchPts = clutchPoints(input.clutches);
+    const c = extra?.clutches ?? input.clutches ?? emptyClutches();
+    const clutchPts = clutchPoints(extra?.clutches ?? input.clutches);
+    const multikills = extra?.multikills ?? emptyMultikills();
+    const multikillPts = multikillPoints(extra?.multikills);
 
     const acsMax = Math.max(0, ...allPlayersOnMap.map((p) => p.acs));
     const kastMax = Math.max(0, ...allPlayersOnMap.map((p) => p.kastPercent));
@@ -62,6 +81,7 @@ export const fantasyScoring = {
       assistsPts +
       firstDeathsPts +
       clutchPts +
+      multikillPts +
       acsBonus +
       kastBonus +
       adrBonus +
@@ -79,6 +99,7 @@ export const fantasyScoring = {
         adr: input.adr,
         hsPercent: input.hsPercent,
         clutches: c,
+        multikills,
       },
       points: {
         kills: killsPts,
@@ -86,6 +107,7 @@ export const fantasyScoring = {
         assists: assistsPts,
         firstDeaths: firstDeathsPts,
         clutch: clutchPts,
+        multikill: multikillPts,
         acsBonus,
         kastBonus,
         adrBonus,

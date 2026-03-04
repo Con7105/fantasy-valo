@@ -1,5 +1,5 @@
 import { useApp } from '../context/AppContext';
-import type { ClutchCounts, MapPointsBreakdown } from '../types';
+import type { ClutchCounts, MapPointsBreakdown, MultikillCounts } from '../types';
 import { fantasyScoring } from '../scoring';
 
 function formatClutchFormula(c: ClutchCounts): string {
@@ -65,6 +65,22 @@ function MapBreakdownRow({ mapIndex, b }: { mapIndex: number; b: MapPointsBreakd
             </td>
             <td className="breakdown-formula">+1 per X → {formatClutchFormula(stats.clutches)}</td>
             <td className="breakdown-pts">{points.clutch.toFixed(1)} pts</td>
+          </tr>
+          <tr>
+            <td>Multikill (2K/3K/4K/5K)</td>
+            <td>
+              {(() => {
+                const m: MultikillCounts = stats.multikills ?? { k2: 0, k3: 0, k4: 0, k5: 0 };
+                const parts: string[] = [];
+                if (m.k2) parts.push(`2K: ${m.k2}`);
+                if (m.k3) parts.push(`3K: ${m.k3}`);
+                if (m.k4) parts.push(`4K: ${m.k4}`);
+                if (m.k5) parts.push(`5K: ${m.k5}`);
+                return parts.length ? parts.join(', ') : '0';
+              })()}
+            </td>
+            <td className="breakdown-formula">+1 each</td>
+            <td className="breakdown-pts">{points.multikill.toFixed(1)} pts</td>
           </tr>
           <tr>
             <td>ACS (highest on map)</td>

@@ -9,7 +9,7 @@ import {
   type MapPlayerStatsInput,
   type MapPointsBreakdown,
 } from '../types';
-import type { ClutchCounts } from '../types';
+import type { ClutchCounts, MultikillCounts } from '../types';
 import { fantasyScoring } from '../scoring';
 
 // V2 API response shapes
@@ -81,6 +81,16 @@ interface V2PlayerStat {
   adr?: string;
   fk?: string;
   fd?: string;
+  /** Headshot % (0–100). API may use hs, hs_pct, headshot, headshot_pct, hs%. */
+  hs?: string | number;
+  hs_pct?: string | number;
+  headshot?: string | number;
+  headshot_pct?: string | number;
+  'hs%'?: string;
+  /** KAST % (0–100). API may use kast, kast_pct, kast%. */
+  kast?: string | number;
+  kast_pct?: string | number;
+  'kast%'?: string;
   /** Clutch counts – API may use clutch_1v1 or literal "1v1" etc. */
   clutch_1v1?: string | number;
   clutch_1v2?: string | number;
@@ -207,18 +217,28 @@ function getClutch(p: V2PlayerStat, key: '1v1' | '1v2' | '1v3' | '1v4' | '1v5'):
   return parseNum(val as string | number | undefined);
 }
 
-/** Keys 6–10 in advanced_stats = 1v1, 1v2, 1v3, 1v4, 1v5. Returns clutch counts from one row. */
+/** Keys 1–4 = 2K,3K,4K,5K; 5–9 = 1v1,1v2,1v3,1v4,1v5 (VLR advanced_stats column order). */
 function clutchesFromAdvancedStat(entry: V2AdvancedStatEntry): ClutchCounts {
   return {
-    clutch1v1: parseNum(entry['6']),
-    clutch1v2: parseNum(entry['7']),
-    clutch1v3: parseNum(entry['8']),
-    clutch1v4: parseNum(entry['9']),
-    clutch1v5: parseNum(entry['10']),
+    clutch1v1: parseNum(entry['5']),
+    clutch1v2: parseNum(entry['6']),
+    clutch1v3: parseNum(entry['7']),
+    clutch1v4: parseNum(entry['8']),
+    clutch1v5: parseNum(entry['9']),
   };
 }
 
-/** Build map: normalized player id (e.g. "NoManXLG") -> ClutchCounts. Match-level stats. */
+/** Keys 1–4 in advanced_stats = 2K, 3K, 4K, 5K. +1 point per multikill. */
+function multikillsFromAdvancedStat(entry: V2AdvancedStatEntry): MultikillCounts {
+  return {
+    k2: parseNum(entry['1']),
+    k3: parseNum(entry['2']),
+    k4: parseNum(entry['3']),
+    k5: parseNum(entry['4']),
+  };
+}
+
+/** Build map: normalized player id -> ClutchCounts. Match-level stats. */
 function buildClutchMapFromAdvancedStats(entries: V2AdvancedStatEntry[]): Map<string, ClutchCounts> {
   const map = new Map<string, ClutchCounts>();
   for (const e of entries ?? []) {
@@ -227,6 +247,19 @@ function buildClutchMapFromAdvancedStats(entries: V2AdvancedStatEntry[]): Map<st
     const clutches = clutchesFromAdvancedStat(e);
     const hasAny = clutches.clutch1v1 + clutches.clutch1v2 + clutches.clutch1v3 + clutches.clutch1v4 + clutches.clutch1v5 > 0;
     if (hasAny) map.set(id, clutches);
+  }
+  return map;
+}
+
+/** Build map: normalized player id -> MultikillCounts. Match-level stats. */
+function buildMultikillMapFromAdvancedStats(entries: V2AdvancedStatEntry[]): Map<string, MultikillCounts> {
+  const map = new Map<string, MultikillCounts>();
+  for (const e of entries ?? []) {
+    const id = (e.player ?? '').trim().replace(/\s/g, '').toLowerCase();
+    if (!id) continue;
+    const multikills = multikillsFromAdvancedStat(e);
+    const hasAny = multikills.k2 + multikills.k3 + multikills.k4 + multikills.k5 > 0;
+    if (hasAny) map.set(id, multikills);
   }
   return map;
 }
@@ -241,6 +274,15 @@ function clutchPointsFromCounts(c: ClutchCounts): number {
   return c.clutch1v1 * 1 + c.clutch1v2 * 2 + c.clutch1v3 * 3 + c.clutch1v4 * 4 + c.clutch1v5 * 5;
 }
 
+/** Parse percentage from API (may be "42" or "42%" or 42). Clamp 0–100. */
+function parsePercent(val: string | number | undefined): number {
+  if (val == null) return 0;
+  const s = typeof val === 'string' ? val.replace(/%/g, '').trim() : String(val);
+  const n = parseFloat(s);
+  if (Number.isNaN(n)) return 0;
+  return Math.max(0, Math.min(100, n));
+}
+
 function v2ToInput(p: V2PlayerStat, team: string): MapPlayerStatsInput | null {
   const name = p.name?.trim();
   if (!name) return null;
@@ -251,6 +293,8 @@ function v2ToInput(p: V2PlayerStat, team: string): MapPlayerStatsInput | null {
     clutch1v4: getClutch(p, '1v4'),
     clutch1v5: getClutch(p, '1v5'),
   };
+  const hsPercent = parsePercent(p.hs ?? p.hs_pct ?? p['hs%'] ?? p.headshot ?? p.headshot_pct);
+  const kastPercent = parsePercent(p.kast ?? p.kast_pct ?? p['kast%']);
   return {
     name,
     kills: parseInt(p.kills ?? '0', 10) || 0,
@@ -258,9 +302,9 @@ function v2ToInput(p: V2PlayerStat, team: string): MapPlayerStatsInput | null {
     firstDeaths: parseInt(p.fd ?? '0', 10) || 0,
     assists: parseInt(p.assists ?? '0', 10) || 0,
     acs: parseFloat(p.acs ?? '0') || 0,
-    kastPercent: 0,
+    kastPercent,
     adr: parseFloat(p.adr ?? '0') || 0,
-    hsPercent: 0,
+    hsPercent,
     team,
     clutches,
   };
@@ -460,6 +504,7 @@ export async function fetchPerPlayerMapPoints(
     const isCompleted = match.status === 'completed';
     const advancedStats = isCompleted ? (detail.performance?.advanced_stats ?? []) : [];
     const clutchMap = buildClutchMapFromAdvancedStats(advancedStats);
+    const multikillMap = buildMultikillMapFromAdvancedStats(advancedStats);
 
     for (const map of maps) {
       const t1 = map.players?.team1 ?? [];
@@ -497,6 +542,15 @@ export async function fetchPerPlayerMapPoints(
             breakdown.total += clutchPerMap;
             breakdown.points.clutch += clutchPerMap;
             breakdown.stats.clutches = matchClutches;
+          }
+          const matchMultikills = multikillMap.get(lookupKey);
+          if (matchMultikills) {
+            const totalMultikillPts =
+              (matchMultikills.k2 + matchMultikills.k3 + matchMultikills.k4 + matchMultikills.k5) * 1;
+            const multikillPerMap = totalMultikillPts / numMaps;
+            breakdown.total += multikillPerMap;
+            breakdown.points.multikill += multikillPerMap;
+            breakdown.stats.multikills = matchMultikills;
           }
         }
 

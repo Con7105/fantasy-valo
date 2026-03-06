@@ -449,6 +449,15 @@ export function normalizeMatchDate(dateStr: string | undefined): string | null {
   return `${y}-${m}-${day}`;
 }
 
+/** Today's date in YYYY-MM-DD (local timezone). */
+function todayYYYYMMDD(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 /** Playoffs: March 6–15. Match is included if its normalized date falls in that range (any year). */
 const PLAYOFFS_MM_DD_START = '03-06';
 const PLAYOFFS_MM_DD_END = '03-15';
@@ -462,22 +471,29 @@ function isPlayoffsDate(yyyyMmDd: string | null): boolean {
 /** True if match stage is Upper Quarterfinals or later (playoff bracket). */
 export function isPlayoffsStage(stage: string | undefined): boolean {
   if (!stage || !stage.trim()) return false;
-  const s = stage.toLowerCase();
+  const s = stage.toLowerCase().replace(/-/g, ' ');
   return (
     s.includes('upper quarterfinal') ||
+    s.includes('quarterfinal') ||
+    s.includes('quarter final') ||
     s.includes('upper semifinal') ||
+    s.includes('semifinal') ||
     s.includes('upper final') ||
     s.includes('lower round') ||
     s.includes('lower final') ||
-    s.includes('grand final')
+    s.includes('grand final') ||
+    s.includes('playoff')
   );
 }
 
-/** Team names that appear in at least one playoff-stage match (Upper Quarterfinals or further). */
+/** Team names that appear in at least one playoff-stage match or any match in the playoff date window (Mar 6–15). */
 export function getPlayoffTeamNames(matches: EventMatchItemNorm[]): Set<string> {
   const names = new Set<string>();
   for (const m of matches) {
-    if (!isPlayoffsStage(m.stage)) continue;
+    const inStage = isPlayoffsStage(m.stage);
+    const d = normalizeMatchDate(m.date);
+    const inDateRange = d !== null && isPlayoffsDate(d);
+    if (!inStage && !inDateRange) continue;
     if (m.team1Name && m.team1Name !== 'TBD') names.add(m.team1Name);
     if (m.team2Name && m.team2Name !== 'TBD') names.add(m.team2Name);
   }
@@ -499,10 +515,18 @@ export async function fetchPerPlayerMapPoints(
   let toScoreFiltered = toScore;
   if (options?.matchFilter) toScoreFiltered = toScoreFiltered.filter(options.matchFilter);
 
-  // Restrict to playoffs: only matches whose date is Mar 6–Mar 15 and stage is Upper Quarterfinals or later
+  const today = todayYYYYMMDD();
+
+  // Restrict to playoffs: only matches whose date is Mar 6–Mar 15 and stage is Upper Quarterfinals or later.
+  // For live/ongoing matches with no parseable date, use today so they are included when today is in range.
+  // If stage is missing but match is live/ongoing and in date range, include it so live playoff games are scored.
   toScoreFiltered = toScoreFiltered.filter((m) => {
-    const d = normalizeMatchDate(m.date);
-    return d !== null && isPlayoffsDate(d) && isPlayoffsStage(m.stage);
+    let d = normalizeMatchDate(m.date);
+    if (d === null && (m.status === 'live' || m.status === 'ongoing')) d = today;
+    if (d === null || !isPlayoffsDate(d)) return false;
+    const inStage = isPlayoffsStage(m.stage);
+    const liveInRange = (m.status === 'live' || m.status === 'ongoing') && isPlayoffsDate(d);
+    return inStage || liveInRange;
   });
 
   const selectedDateSet =
@@ -511,7 +535,8 @@ export async function fetchPerPlayerMapPoints(
       : null;
   if (selectedDateSet) {
     toScoreFiltered = toScoreFiltered.filter((m) => {
-      const d = normalizeMatchDate(m.date);
+      let d = normalizeMatchDate(m.date);
+      if (d === null && (m.status === 'live' || m.status === 'ongoing')) d = today;
       return d !== null && selectedDateSet.has(d);
     });
   }

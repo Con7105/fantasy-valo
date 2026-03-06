@@ -436,17 +436,52 @@ export interface PerPlayerMapPointsResult {
   mapBreakdowns: Record<string, MapPointsBreakdown[]>;
 }
 
-/** Normalize API date to YYYY-MM-DD. Returns null if unparseable. */
+const MONTH_NAMES =
+  'january|february|march|april|may|june|july|august|september|october|november|december';
+const MONTH_NUM: Record<string, number> = {
+  january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
+  july: 7, august: 8, september: 9, october: 10, november: 11, december: 12,
+};
+
+/**
+ * Normalize API date to YYYY-MM-DD. Handles:
+ * - ISO (2025-03-06)
+ * - new Date() parseable strings
+ * - "Friday, March 61:00 PM EST" (day and time concatenated → March 6)
+ */
 export function normalizeMatchDate(dateStr: string | undefined): string | null {
   if (!dateStr || !dateStr.trim()) return null;
   const s = dateStr.trim();
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-  const d = new Date(s);
-  if (Number.isNaN(d.getTime())) return null;
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+
+  let d = new Date(s);
+  if (!Number.isNaN(d.getTime())) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  const re = new RegExp(
+    `(${MONTH_NAMES})\\s+(?:the\\s+)?(\\d{1,2})`,
+    'i'
+  );
+  const match = s.match(re);
+  if (match) {
+    const monthName = match[1].toLowerCase();
+    let dayNum = parseInt(match[2], 10);
+    if (dayNum > 31) dayNum = Math.floor(dayNum / 10);
+    if (dayNum < 1 || dayNum > 31) return null;
+    const month = MONTH_NUM[monthName];
+    if (!month) return null;
+    const year = new Date().getFullYear();
+    const y = String(year);
+    const m = String(month).padStart(2, '0');
+    const day = String(dayNum).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }
+
+  return null;
 }
 
 /** Today's date in YYYY-MM-DD (local timezone). */

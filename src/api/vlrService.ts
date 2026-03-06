@@ -486,16 +486,38 @@ export function isPlayoffsStage(stage: string | undefined): boolean {
   );
 }
 
-/** Team names that appear in at least one playoff-stage match or any match in the playoff date window (Mar 6–15). */
+/** True if match stage is a Lower bracket round (loser is eliminated). */
+function isLowerBracketMatch(stage: string | undefined): boolean {
+  if (!stage || !stage.trim()) return false;
+  const s = stage.toLowerCase().replace(/-/g, ' ');
+  return s.includes('lower round') || s.includes('lower final');
+}
+
+/**
+ * Team names that (1) appear in at least one playoff-stage match (Upper Quarterfinals or later)
+ * and (2) have not been eliminated by losing a Lower bracket match.
+ * Excludes Swiss-eliminated teams (no playoff match) and Lower-bracket losers.
+ */
 export function getPlayoffTeamNames(matches: EventMatchItemNorm[]): Set<string> {
-  const names = new Set<string>();
+  const playoffTeams = new Set<string>();
+  const eliminated = new Set<string>();
+
   for (const m of matches) {
-    const inStage = isPlayoffsStage(m.stage);
-    const d = normalizeMatchDate(m.date);
-    const inDateRange = d !== null && isPlayoffsDate(d);
-    if (!inStage && !inDateRange) continue;
-    if (m.team1Name && m.team1Name !== 'TBD') names.add(m.team1Name);
-    if (m.team2Name && m.team2Name !== 'TBD') names.add(m.team2Name);
+    if (!isPlayoffsStage(m.stage)) continue;
+    if (m.team1Name && m.team1Name !== 'TBD') playoffTeams.add(m.team1Name);
+    if (m.team2Name && m.team2Name !== 'TBD') playoffTeams.add(m.team2Name);
+
+    if (isLowerBracketMatch(m.stage) && m.status === 'completed') {
+      const s1 = m.team1Score ?? -1;
+      const s2 = m.team2Score ?? -1;
+      if (s1 < s2 && m.team1Name && m.team1Name !== 'TBD') eliminated.add(m.team1Name);
+      else if (s2 < s1 && m.team2Name && m.team2Name !== 'TBD') eliminated.add(m.team2Name);
+    }
+  }
+
+  const names = new Set<string>();
+  for (const t of playoffTeams) {
+    if (!eliminated.has(t)) names.add(t);
   }
   return names;
 }

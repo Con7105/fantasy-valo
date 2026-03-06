@@ -27,6 +27,8 @@ function clutchPoints(c: ClutchCounts | undefined): number {
   );
 }
 
+//fix
+
 function emptyClutches(): ClutchCounts {
   return { clutch1v1: 0, clutch1v2: 0, clutch1v3: 0, clutch1v4: 0, clutch1v5: 0 };
 }

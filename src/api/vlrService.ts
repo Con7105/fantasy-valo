@@ -444,44 +444,31 @@ const MONTH_NUM: Record<string, number> = {
 };
 
 /**
- * Normalize API date to YYYY-MM-DD. Handles:
- * - ISO (2025-03-06)
- * - new Date() parseable strings
- * - "Friday, March 61:00 PM EST" (day and time concatenated → March 6)
+ * Parse API date format: "[Day], [Month] [Date][Time] [AM/PM] EST"
+ * e.g. "Friday, March 6 1:00 PM EST" or "Friday, March 61:00 PM EST" (day+time concatenated).
+ * Returns YYYY-MM-DD or null. Uses current year.
  */
 export function normalizeMatchDate(dateStr: string | undefined): string | null {
   if (!dateStr || !dateStr.trim()) return null;
   const s = dateStr.trim();
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
 
-  let d = new Date(s);
-  if (!Number.isNaN(d.getTime())) {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  }
-
   const re = new RegExp(
-    `(${MONTH_NAMES})\\s+(?:the\\s+)?(\\d{1,2})`,
+    `[,]\\s*(${MONTH_NAMES})\\s+(\\d{1,2})`,
     'i'
   );
   const match = s.match(re);
-  if (match) {
-    const monthName = match[1].toLowerCase();
-    let dayNum = parseInt(match[2], 10);
-    if (dayNum > 31) dayNum = Math.floor(dayNum / 10);
-    if (dayNum < 1 || dayNum > 31) return null;
-    const month = MONTH_NUM[monthName];
-    if (!month) return null;
-    const year = new Date().getFullYear();
-    const y = String(year);
-    const m = String(month).padStart(2, '0');
-    const day = String(dayNum).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  }
-
-  return null;
+  if (!match) return null;
+  const monthName = match[1].toLowerCase();
+  let dayNum = parseInt(match[2], 10);
+  if (dayNum > 31) dayNum = Math.floor(dayNum / 10);
+  if (dayNum < 1 || dayNum > 31) return null;
+  const month = MONTH_NUM[monthName];
+  if (!month) return null;
+  const year = new Date().getFullYear();
+  const m = String(month).padStart(2, '0');
+  const day = String(dayNum).padStart(2, '0');
+  return `${year}-${m}-${day}`;
 }
 
 /** Today's date in YYYY-MM-DD (local timezone). */
@@ -574,9 +561,8 @@ export async function fetchPerPlayerMapPoints(
 
   const today = todayYYYYMMDD();
 
-  // Restrict to playoffs: only matches whose date is Mar 6–Mar 15 and stage is Upper Quarterfinals or later.
-  // For live/ongoing matches with no parseable date, use today so they are included when today is in range.
-  // If stage is missing but match is live/ongoing and in date range, include it so live playoff games are scored.
+  // Only pull from games where the date is March 6–15 (playoffs). Stage must be Upper Quarterfinals or later.
+  // For live/ongoing with no parseable date, use today. If stage is missing but match is live and in range, include it.
   toScoreFiltered = toScoreFiltered.filter((m) => {
     let d = normalizeMatchDate(m.date);
     if (d === null && (m.status === 'live' || m.status === 'ongoing')) d = today;
@@ -586,6 +572,8 @@ export async function fetchPerPlayerMapPoints(
     return inStage || liveInRange;
   });
 
+  // When user selects specific days on the Events page (e.g. Mar 6, Mar 7), only include matches
+  // whose date matches one of those days. Stats displayed will be only from these matches.
   const selectedDateSet =
     options?.selectedDates && options.selectedDates.length > 0
       ? new Set(options.selectedDates)

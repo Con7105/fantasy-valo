@@ -459,6 +459,31 @@ function isPlayoffsDate(yyyyMmDd: string | null): boolean {
   return mmdd >= PLAYOFFS_MM_DD_START && mmdd <= PLAYOFFS_MM_DD_END;
 }
 
+/** True if match stage is Upper Quarterfinals or later (playoff bracket). */
+export function isPlayoffsStage(stage: string | undefined): boolean {
+  if (!stage || !stage.trim()) return false;
+  const s = stage.toLowerCase();
+  return (
+    s.includes('upper quarterfinal') ||
+    s.includes('upper semifinal') ||
+    s.includes('upper final') ||
+    s.includes('lower round') ||
+    s.includes('lower final') ||
+    s.includes('grand final')
+  );
+}
+
+/** Team names that appear in at least one playoff-stage match (Upper Quarterfinals or further). */
+export function getPlayoffTeamNames(matches: EventMatchItemNorm[]): Set<string> {
+  const names = new Set<string>();
+  for (const m of matches) {
+    if (!isPlayoffsStage(m.stage)) continue;
+    if (m.team1Name && m.team1Name !== 'TBD') names.add(m.team1Name);
+    if (m.team2Name && m.team2Name !== 'TBD') names.add(m.team2Name);
+  }
+  return names;
+}
+
 /**
  * Score only matches in the playoffs window (Mar 6–Mar 15). Optionally restrict to selected dates (YYYY-MM-DD).
  * @param selectedDates If provided and non-empty, only matches on these dates are scored. Empty = all playoff days.
@@ -474,10 +499,10 @@ export async function fetchPerPlayerMapPoints(
   let toScoreFiltered = toScore;
   if (options?.matchFilter) toScoreFiltered = toScoreFiltered.filter(options.matchFilter);
 
-  // Restrict to playoffs: only matches whose date is Mar 6–Mar 15
+  // Restrict to playoffs: only matches whose date is Mar 6–Mar 15 and stage is Upper Quarterfinals or later
   toScoreFiltered = toScoreFiltered.filter((m) => {
     const d = normalizeMatchDate(m.date);
-    return d !== null && isPlayoffsDate(d);
+    return d !== null && isPlayoffsDate(d) && isPlayoffsStage(m.stage);
   });
 
   const selectedDateSet =

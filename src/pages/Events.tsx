@@ -1,16 +1,6 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { normalizeMatchDate } from '../api/vlrService';
-
-const PLAYOFFS_MM_DD_START = '03-06';
-const PLAYOFFS_MM_DD_END = '03-15';
-
-function isPlayoffsDate(yyyyMmDd: string): boolean {
-  if (yyyyMmDd.length < 10) return false;
-  const mmdd = yyyyMmDd.slice(5, 10);
-  return mmdd >= PLAYOFFS_MM_DD_START && mmdd <= PLAYOFFS_MM_DD_END;
-}
 
 const MONTHS: Record<string, string> = {
   '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr', '05': 'May', '06': 'Jun',
@@ -46,18 +36,14 @@ export function Events() {
   };
 
   const { playoffDateOptions } = useMemo(() => {
-    const dates = new Set<string>();
-    for (const m of eventMatches) {
-      const d = normalizeMatchDate(m.date);
-      if (d && isPlayoffsDate(d)) dates.add(d);
+    const year = new Date().getFullYear();
+    const options: { date: string; label: string }[] = [];
+    for (let day = 6; day <= 15; day++) {
+      const date = `${year}-03-${String(day).padStart(2, '0')}`;
+      options.push({ date, label: formatPlayoffDateLabel(date) });
     }
-    const sorted = Array.from(dates).sort();
-    const options = sorted.map((date) => ({
-      date,
-      label: formatPlayoffDateLabel(date),
-    }));
     return { playoffDateOptions: options };
-  }, [eventMatches]);
+  }, []);
 
   const allSelected = selectedPlayoffDates.length === 0;
   const isDateSelected = (date: string) =>

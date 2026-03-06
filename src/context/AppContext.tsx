@@ -12,6 +12,7 @@ import {
   fetchEventMatches,
   fetchEventStats,
   fetchPerPlayerMapPoints,
+  getPlayoffTeamNames,
   normalizeMatchDate,
 } from '../api/vlrService';
 import type {
@@ -85,6 +86,8 @@ interface AppState {
 }
 
 interface AppContextValue extends AppState {
+  /** Teams that appear in Upper Quarterfinals or later (playoff bracket only). */
+  playoffTeamNames: Set<string>;
   selectEvent: (id: string, name: string) => void;
   setSelectedPlayoffDates: (dates: string[]) => void;
   loadEvents: () => Promise<void>;
@@ -308,9 +311,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [state.selectedEventId]);
 
+  const playoffTeamNames = useMemo(
+    () => getPlayoffTeamNames(state.eventMatches),
+    [state.eventMatches]
+  );
+
   const value: AppContextValue = useMemo(
     () => ({
       ...state,
+      playoffTeamNames,
       selectEvent,
       setSelectedPlayoffDates,
       loadEvents,
@@ -325,7 +334,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       isRosterFull,
       loadFantasyData,
     }),
-    [state, selectEvent, setSelectedPlayoffDates, loadEvents, loadEventMatches, setError, clearError, addPlayer, removePlayer, pointsForPlayer, getPlayerBreakdown, totalPoints, isRosterFull, loadFantasyData]
+    [state, playoffTeamNames, selectEvent, setSelectedPlayoffDates, loadEvents, loadEventMatches, setError, clearError, addPlayer, removePlayer, pointsForPlayer, getPlayerBreakdown, totalPoints, isRosterFull, loadFantasyData]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

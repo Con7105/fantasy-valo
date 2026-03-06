@@ -8,10 +8,16 @@ export function Teams() {
   const {
     selectedEventId,
     eventStats,
+    playoffTeamNames,
     loadFantasyData,
     pointsForPlayer,
     getPlayerBreakdown,
   } = useApp();
+
+  const playerPool =
+    playoffTeamNames.size > 0
+      ? eventStats.filter((s) => playoffTeamNames.has(s.teamName))
+      : eventStats;
   const {
     teams,
     addTeam,
@@ -200,7 +206,7 @@ export function Teams() {
             <p className="empty">Load event stats first (they load when you open this page).</p>
           ) : (
             <ul className="list player-list">
-              {eventStats.map((stat) => {
+              {playerPool.map((stat) => {
                 const alreadyInTeam = addingToTeam.players.some(
                   (p) => p.playerName === stat.playerName && p.teamName === stat.teamName
                 );

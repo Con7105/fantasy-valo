@@ -436,13 +436,36 @@ export interface PerPlayerMapPointsResult {
   mapBreakdowns: Record<string, MapPointsBreakdown[]>;
 }
 
+/** Normalize API date to YYYY-MM-DD. Returns null if unparseable. */
+export function normalizeMatchDate(dateStr: string | undefined): string | null {
+  if (!dateStr || !dateStr.trim()) return null;
+  const s = dateStr.trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/** Playoffs: March 6–15. Match is included if its normalized date falls in that range (any year). */
+const PLAYOFFS_MM_DD_START = '03-06';
+const PLAYOFFS_MM_DD_END = '03-15';
+
+function isPlayoffsDate(yyyyMmDd: string | null): boolean {
+  if (!yyyyMmDd || yyyyMmDd.length < 10) return false;
+  const mmdd = yyyyMmDd.slice(5, 10);
+  return mmdd >= PLAYOFFS_MM_DD_START && mmdd <= PLAYOFFS_MM_DD_END;
+}
+
 /**
- * @param selectedRoundIndices 1-based match indices per team (Match 1, 2, 3...). Each team's
- * matches are ordered by match_id in event order. Empty = include all scoreable matches.
+ * Score only matches in the playoffs window (Mar 6–Mar 15). Optionally restrict to selected dates (YYYY-MM-DD).
+ * @param selectedDates If provided and non-empty, only matches on these dates are scored. Empty = all playoff days.
  */
 export async function fetchPerPlayerMapPoints(
   eventId: string,
-  options?: { matchFilter?: MatchFilter; selectedRoundIndices?: number[] }
+  options?: { matchFilter?: MatchFilter; selectedDates?: string[] }
 ): Promise<PerPlayerMapPointsResult> {
   const matches = await fetchEventMatches(eventId, 50);
   const withTeams = matches.filter((m) => m.team1Name !== 'TBD' && m.team2Name !== 'TBD');
@@ -451,20 +474,22 @@ export async function fetchPerPlayerMapPoints(
   let toScoreFiltered = toScore;
   if (options?.matchFilter) toScoreFiltered = toScoreFiltered.filter(options.matchFilter);
 
-  const teamToMatchIds: Record<string, string[]> = {};
-  for (const m of toScoreFiltered) {
-    const t1 = m.team1Name;
-    const t2 = m.team2Name;
-    if (!teamToMatchIds[t1]) teamToMatchIds[t1] = [];
-    if (!teamToMatchIds[t1].includes(m.id)) teamToMatchIds[t1].push(m.id);
-    if (!teamToMatchIds[t2]) teamToMatchIds[t2] = [];
-    if (!teamToMatchIds[t2].includes(m.id)) teamToMatchIds[t2].push(m.id);
-  }
+  // Restrict to playoffs: only matches whose date is Mar 6–Mar 15
+  toScoreFiltered = toScoreFiltered.filter((m) => {
+    const d = normalizeMatchDate(m.date);
+    return d !== null && isPlayoffsDate(d);
+  });
 
-  const selectedSet =
-    options?.selectedRoundIndices && options.selectedRoundIndices.length > 0
-      ? new Set(options.selectedRoundIndices)
+  const selectedDateSet =
+    options?.selectedDates && options.selectedDates.length > 0
+      ? new Set(options.selectedDates)
       : null;
+  if (selectedDateSet) {
+    toScoreFiltered = toScoreFiltered.filter((m) => {
+      const d = normalizeMatchDate(m.date);
+      return d !== null && selectedDateSet.has(d);
+    });
+  }
 
   const mapPoints: Record<string, number[]> = {};
   const mapBreakdowns: Record<string, MapPointsBreakdown[]> = {};
@@ -476,10 +501,6 @@ export async function fetchPerPlayerMapPoints(
     const team1Name = detail.teams?.[0]?.name ?? match.team1Name;
     const team2Name = (detail.teams?.length ?? 0) > 1 ? detail.teams![1].name : match.team2Name;
 
-    const idx1 = teamToMatchIds[team1Name]?.indexOf(match.id) ?? -1;
-    const idx2 = teamToMatchIds[team2Name]?.indexOf(match.id) ?? -1;
-    const roundIndexTeam1 = idx1 >= 0 ? idx1 + 1 : 0;
-    const roundIndexTeam2 = idx2 >= 0 ? idx2 + 1 : 0;
     const s1 = parseScore(detail.teams?.[0]?.score);
     const s2 = (detail.teams?.length ?? 0) > 1 ? parseScore(detail.teams?.[1]?.score) : undefined;
     let winningTeamName: string | null = null;
@@ -513,11 +534,6 @@ export async function fetchPerPlayerMapPoints(
       if (!mapPlayed) continue;
 
       for (const input of allInputs) {
-        if (selectedSet) {
-          const playerRoundIndex = input.team === team1Name ? roundIndexTeam1 : roundIndexTeam2;
-          if (playerRoundIndex === 0 || !selectedSet.has(playerRoundIndex)) continue;
-        }
-
         const winBonus =
           match.status === 'completed' && winningTeamName === input.team ? winBonusPerMap : 0;
         const breakdown = fantasyScoring.pointsForMapBreakdown(input, allInputs, winBonus);

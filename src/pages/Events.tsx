@@ -1,6 +1,28 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { normalizeMatchDate } from '../api/vlrService';
+
+const PLAYOFFS_MM_DD_START = '03-06';
+const PLAYOFFS_MM_DD_END = '03-15';
+
+function isPlayoffsDate(yyyyMmDd: string): boolean {
+  if (yyyyMmDd.length < 10) return false;
+  const mmdd = yyyyMmDd.slice(5, 10);
+  return mmdd >= PLAYOFFS_MM_DD_START && mmdd <= PLAYOFFS_MM_DD_END;
+}
+
+const MONTHS: Record<string, string> = {
+  '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr', '05': 'May', '06': 'Jun',
+  '07': 'Jul', '08': 'Aug', '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dec',
+};
+
+function formatPlayoffDateLabel(yyyyMmDd: string): string {
+  const [, mm, dd] = yyyyMmDd.split('-');
+  const month = MONTHS[mm ?? ''] ?? mm;
+  const day = dd ? parseInt(dd, 10) : 0;
+  return `${month} ${day}`;
+}
 
 export function Events() {
   const {
@@ -9,8 +31,8 @@ export function Events() {
     selectedEventId,
     selectedEventName,
     eventMatches,
-    selectedMatchIndices,
-    setSelectedMatchIndices,
+    selectedPlayoffDates,
+    setSelectedPlayoffDates,
     selectEvent,
     loadEvents,
     loadEventMatches,
@@ -23,34 +45,23 @@ export function Events() {
     loadEventMatches();
   };
 
-  const { roundCount, roundLabels } = useMemo(() => {
-    const withTeams = eventMatches.filter((m) => m.team1Name !== 'TBD' && m.team2Name !== 'TBD');
-    const teamToMatchIds: Record<string, string[]> = {};
-    for (const m of withTeams) {
-      const t1 = m.team1Name;
-      const t2 = m.team2Name;
-      if (!teamToMatchIds[t1]) teamToMatchIds[t1] = [];
-      if (!teamToMatchIds[t1].includes(m.id)) teamToMatchIds[t1].push(m.id);
-      if (!teamToMatchIds[t2]) teamToMatchIds[t2] = [];
-      if (!teamToMatchIds[t2].includes(m.id)) teamToMatchIds[t2].push(m.id);
+  const { playoffDateOptions } = useMemo(() => {
+    const dates = new Set<string>();
+    for (const m of eventMatches) {
+      const d = normalizeMatchDate(m.date);
+      if (d && isPlayoffsDate(d)) dates.add(d);
     }
-    const counts = Object.values(teamToMatchIds).map((arr) => arr.length);
-    const count = counts.length > 0 ? Math.max(...counts, 2) : 0;
-    const labels: string[] = [];
-    for (let i = 1; i <= count; i++) {
-      const hasCompleted = withTeams.some((m) => {
-        const r1 = (teamToMatchIds[m.team1Name]?.indexOf(m.id) ?? -1) + 1;
-        const r2 = (teamToMatchIds[m.team2Name]?.indexOf(m.id) ?? -1) + 1;
-        return (r1 === i || r2 === i) && m.status === 'completed';
-      });
-      labels.push(hasCompleted ? `Match ${i} (completed)` : `Match ${i}`);
-    }
-    return { roundCount: count, roundLabels: labels };
+    const sorted = Array.from(dates).sort();
+    const options = sorted.map((date) => ({
+      date,
+      label: formatPlayoffDateLabel(date),
+    }));
+    return { playoffDateOptions: options };
   }, [eventMatches]);
 
-  const allSelected = selectedMatchIndices.length === 0;
-  const isRoundSelected = (idx: number) =>
-    allSelected || selectedMatchIndices.includes(idx);
+  const allSelected = selectedPlayoffDates.length === 0;
+  const isDateSelected = (date: string) =>
+    allSelected || selectedPlayoffDates.includes(date);
 
   return (
     <div className="page">
@@ -73,55 +84,53 @@ export function Events() {
               <Link to="/matches">View matches ({eventMatches.length})</Link>
             </section>
           )}
-          {selectedEventId && roundCount > 0 && (
+          {selectedEventId && playoffDateOptions.length > 0 && (
             <section className="section score-period-section">
-              <h2>Score period</h2>
+              <h2>Score period (playoffs)</h2>
               <p className="caption">
-                Include points from each team&apos;s Match 1, Match 2, etc. (A match is 2–3 maps; each option is per team by match ID.) Use &quot;Refresh points&quot; on Teams or Matchups after changing.
+                Points are from playoff matches only (Mar 6–Mar 15). Choose which days to include. Use &quot;Refresh points&quot; on Teams or Matchups after changing.
               </p>
               <div className="week-selector">
                 <button
                   type="button"
                   className={`btn small ${allSelected ? 'primary' : ''}`}
-                  onClick={() => setSelectedMatchIndices([])}
+                  onClick={() => setSelectedPlayoffDates([])}
                 >
-                  All matches
+                  All playoffs
                 </button>
-                {roundLabels.map((label, i) => {
-                  const idx = i + 1;
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      className={`btn small ${isRoundSelected(idx) ? 'primary' : ''}`}
-                      onClick={() => setSelectedMatchIndices([idx])}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
+                {playoffDateOptions.map(({ date, label }) => (
+                  <button
+                    key={date}
+                    type="button"
+                    className={`btn small ${isDateSelected(date) ? 'primary' : ''}`}
+                    onClick={() => setSelectedPlayoffDates([date])}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
               <div className="date-checkboxes">
-                <span className="date-checkboxes-label">Or select multiple:</span>
-                {roundLabels.map((label, i) => {
-                  const idx = i + 1;
-                  const checked = allSelected || selectedMatchIndices.includes(idx);
+                <span className="date-checkboxes-label">Or select multiple days:</span>
+                {playoffDateOptions.map(({ date, label }) => {
+                  const checked = allSelected || selectedPlayoffDates.includes(date);
                   return (
-                    <label key={idx} className="date-checkbox">
+                    <label key={date} className="date-checkbox">
                       <input
                         type="checkbox"
                         checked={checked}
                         onChange={() => {
                           if (allSelected) {
-                            setSelectedMatchIndices(
-                              Array.from({ length: roundCount }, (_, j) => j + 1).filter((j) => j !== idx)
+                            setSelectedPlayoffDates(
+                              playoffDateOptions.map((o) => o.date).filter((d) => d !== date)
                             );
-                          } else if (selectedMatchIndices.includes(idx)) {
-                            const next = selectedMatchIndices.filter((j) => j !== idx);
-                            setSelectedMatchIndices(next.length > 0 ? next : []);
+                          } else if (selectedPlayoffDates.includes(date)) {
+                            const next = selectedPlayoffDates.filter((d) => d !== date);
+                            setSelectedPlayoffDates(next.length > 0 ? next : []);
                           } else {
-                            const next = [...selectedMatchIndices, idx].sort((a, b) => a - b);
-                            setSelectedMatchIndices(next.length === roundCount ? [] : next);
+                            const next = [...selectedPlayoffDates, date].sort();
+                            setSelectedPlayoffDates(
+                              next.length === playoffDateOptions.length ? [] : next
+                            );
                           }
                         }}
                       />

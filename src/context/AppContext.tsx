@@ -210,7 +210,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const [matches, stats, pointsResult] = await Promise.all([
         fetchEventMatches(id, 50),
-        fetchEventStats(id),
+        fetchEventStats(id, options),
         fetchPerPlayerMapPoints(id, options),
       ]);
       const hasStarted = matches.some(

@@ -22,7 +22,7 @@ Output is in `dist/`. Serve with any static host.
 
 ## Deploy on Vercel
 
-**Important:** You must set **Root Directory** to `web`. The app’s API proxy lives in `web/api/` and is only deployed when the project root is `web`. If you use the repo root, you’ll get **Server error (HTTP 404)** and no events (e.g. Masters Santiago) will load.
+**Important:** You must set **Root Directory** to `web`. The app’s API proxy lives in `web/api/` and is only deployed when the project root is `web`. If you use the repo root, you’ll get **Server error (HTTP 404)** and no events (e.g. VCT 2026 Americas Stage 1) will load.
 
 **Option A – Deploy from this folder (easiest)**
 

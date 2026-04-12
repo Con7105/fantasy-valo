@@ -301,9 +301,44 @@ function v2ToInput(p: V2PlayerStat, team: string): MapPlayerStatsInput | null {
   };
 }
 
-export async function fetchEventStats(eventId: string): Promise<EventPlayerStatNorm[]> {
+const WEEK_STAGE_RE = /\bweek\s*(\d+)\b/i;
+
+function parseMatchWeek(stage: string | undefined): number | null {
+  if (!stage || !stage.trim()) return null;
+  const m = stage.match(WEEK_STAGE_RE);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  return Number.isInteger(n) ? n : null;
+}
+
+/** Same week window as fantasy map points: Week 1–5 labels on the event; optional subset. */
+export type FantasyScoringWeekOptions = { selectedWeeks?: number[] };
+
+export function matchIsInFantasyScoringWeeks(
+  m: EventMatchItemNorm,
+  options?: FantasyScoringWeekOptions
+): boolean {
+  const week = parseMatchWeek(m.stage);
+  if (week === null || week < 1 || week > 5) return false;
+  const selectedWeekSet =
+    options?.selectedWeeks && options.selectedWeeks.length > 0
+      ? new Set(options.selectedWeeks)
+      : null;
+  if (selectedWeekSet) return selectedWeekSet.has(week);
+  return true;
+}
+
+export async function fetchEventStats(
+  eventId: string,
+  options?: FantasyScoringWeekOptions
+): Promise<EventPlayerStatNorm[]> {
   const matches = await fetchEventMatches(eventId, 50);
-  const realMatches = matches.filter((m) => m.team1Name !== 'TBD' && m.team2Name !== 'TBD');
+  const realMatches = matches.filter(
+    (m) =>
+      m.team1Name !== 'TBD' &&
+      m.team2Name !== 'TBD' &&
+      matchIsInFantasyScoringWeeks(m, options)
+  );
 
   const accumulators = new Map<
     string,
@@ -484,16 +519,6 @@ export function normalizeMatchDate(dateStr: string | undefined): string | null {
   return null;
 }
 
-const WEEK_STAGE_RE = /\bweek\s*(\d+)\b/i;
-
-function parseMatchWeek(stage: string | undefined): number | null {
-  if (!stage || !stage.trim()) return null;
-  const m = stage.match(WEEK_STAGE_RE);
-  if (!m) return null;
-  const n = parseInt(m[1], 10);
-  return Number.isInteger(n) ? n : null;
-}
-
 /** True if match stage is Upper Quarterfinals or later (playoff bracket). */
 export function isPlayoffsStage(stage: string | undefined): boolean {
   if (!stage || !stage.trim()) return false;
@@ -551,7 +576,7 @@ export function getPlayoffTeamNames(matches: EventMatchItemNorm[]): Set<string> 
 /** Score group-stage matches for Week 1–5. Optionally restrict to selected week numbers. */
 export async function fetchPerPlayerMapPoints(
   eventId: string,
-  options?: { matchFilter?: MatchFilter; selectedWeeks?: number[] }
+  options?: FantasyScoringWeekOptions & { matchFilter?: MatchFilter }
 ): Promise<PerPlayerMapPointsResult> {
   const matches = await fetchEventMatches(eventId, 50);
   const withTeams = matches.filter((m) => m.team1Name !== 'TBD' && m.team2Name !== 'TBD');
@@ -560,22 +585,7 @@ export async function fetchPerPlayerMapPoints(
   let toScoreFiltered = toScore;
   if (options?.matchFilter) toScoreFiltered = toScoreFiltered.filter(options.matchFilter);
 
-  // Restrict scoring to the regular-week labels on the event page (Week 1–Week 5).
-  toScoreFiltered = toScoreFiltered.filter((m) => {
-    const week = parseMatchWeek(m.stage);
-    return week !== null && week >= 1 && week <= 5;
-  });
-
-  const selectedWeekSet =
-    options?.selectedWeeks && options.selectedWeeks.length > 0
-      ? new Set(options.selectedWeeks)
-      : null;
-  if (selectedWeekSet) {
-    toScoreFiltered = toScoreFiltered.filter((m) => {
-      const week = parseMatchWeek(m.stage);
-      return week !== null && selectedWeekSet.has(week);
-    });
-  }
+  toScoreFiltered = toScoreFiltered.filter((m) => matchIsInFantasyScoringWeeks(m, options));
 
   const mapPoints: Record<string, number[]> = {};
   const mapBreakdowns: Record<string, MapPointsBreakdown[]> = {};

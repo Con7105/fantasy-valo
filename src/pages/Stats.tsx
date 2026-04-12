@@ -94,7 +94,6 @@ export function Stats() {
   const {
     selectedEventId,
     eventStats,
-    playoffTeamNames,
     loadFantasyData,
     pointsForPlayer,
     getPlayerBreakdown,
@@ -122,10 +121,7 @@ export function Stats() {
   const customRatio = sortBy === 'custom' ? { num: customNum, den: customDen } : undefined;
 
   const { inTeamStats, notInTeamStats } = useMemo(() => {
-    const stats =
-      playoffTeamNames.size > 0
-        ? eventStats.filter((s) => playoffTeamNames.has(s.teamName))
-        : eventStats;
+    const stats = eventStats;
     const inTeam: EventPlayerStatNorm[] = [];
     const notInTeam: EventPlayerStatNorm[] = [];
     for (const stat of stats) {
@@ -136,7 +132,7 @@ export function Stats() {
       inTeamStats: sortStats(inTeam, sortBy, pointsForPlayer, customRatio),
       notInTeamStats: sortStats(notInTeam, sortBy, pointsForPlayer, customRatio),
     };
-  }, [eventStats, playoffTeamNames, teams, sortBy, pointsForPlayer, customRatio]);
+  }, [eventStats, teams, sortBy, pointsForPlayer, customRatio]);
 
   function renderPlayerRow(stat: EventPlayerStatNorm) {
     const userTeamLabels = teams.filter((t) =>

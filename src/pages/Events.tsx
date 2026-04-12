@@ -2,17 +2,7 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 
-const MONTHS: Record<string, string> = {
-  '01': 'Jan', '02': 'Feb', '03': 'Mar', '04': 'Apr', '05': 'May', '06': 'Jun',
-  '07': 'Jul', '08': 'Aug', '09': 'Sep', '10': 'Oct', '11': 'Nov', '12': 'Dec',
-};
-
-function formatPlayoffDateLabel(yyyyMmDd: string): string {
-  const [, mm, dd] = yyyyMmDd.split('-');
-  const month = MONTHS[mm ?? ''] ?? mm;
-  const day = dd ? parseInt(dd, 10) : 0;
-  return `${month} ${day}`;
-}
+const WEEK_OPTIONS = [1, 2, 3, 4, 5];
 
 export function Events() {
   const {
@@ -21,8 +11,8 @@ export function Events() {
     selectedEventId,
     selectedEventName,
     eventMatches,
-    selectedPlayoffDates,
-    setSelectedPlayoffDates,
+    selectedWeeks,
+    setSelectedWeeks,
     selectEvent,
     loadEvents,
     loadEventMatches,
@@ -35,19 +25,13 @@ export function Events() {
     loadEventMatches();
   };
 
-  const { playoffDateOptions } = useMemo(() => {
-    const year = new Date().getFullYear();
-    const options: { date: string; label: string }[] = [];
-    for (let day = 6; day <= 15; day++) {
-      const date = `${year}-03-${String(day).padStart(2, '0')}`;
-      options.push({ date, label: formatPlayoffDateLabel(date) });
-    }
-    return { playoffDateOptions: options };
+  const { weekOptions } = useMemo(() => {
+    return { weekOptions: WEEK_OPTIONS };
   }, []);
 
-  const allSelected = selectedPlayoffDates.length === 0;
-  const isDateSelected = (date: string) =>
-    allSelected || selectedPlayoffDates.includes(date);
+  const allSelected = selectedWeeks.length === 0;
+  const isWeekSelected = (week: number) =>
+    allSelected || selectedWeeks.includes(week);
 
   return (
     <div className="page">
@@ -70,57 +54,57 @@ export function Events() {
               <Link to="/matches">View matches ({eventMatches.length})</Link>
             </section>
           )}
-          {selectedEventId && playoffDateOptions.length > 0 && (
+          {selectedEventId && weekOptions.length > 0 && (
             <section className="section score-period-section">
-              <h2>Score period (playoffs)</h2>
+              <h2>Score period (weeks)</h2>
               <p className="caption">
-                Points are from playoff matches only (Mar 6–Mar 15). Choose which days to include. Use &quot;Refresh points&quot; on Teams or Matchups after changing.
+                Points are based on VCT 2026 Americas Stage 1 week labels. Choose which weeks to include. Use &quot;Refresh points&quot; on Teams or Matchups after changing.
               </p>
               <div className="week-selector">
                 <button
                   type="button"
                   className={`btn small ${allSelected ? 'primary' : ''}`}
-                  onClick={() => setSelectedPlayoffDates([])}
+                  onClick={() => setSelectedWeeks([])}
                 >
-                  All playoffs
+                  All weeks
                 </button>
-                {playoffDateOptions.map(({ date, label }) => (
+                {weekOptions.map((week) => (
                   <button
-                    key={date}
+                    key={week}
                     type="button"
-                    className={`btn small ${isDateSelected(date) ? 'primary' : ''}`}
-                    onClick={() => setSelectedPlayoffDates([date])}
+                    className={`btn small ${isWeekSelected(week) ? 'primary' : ''}`}
+                    onClick={() => setSelectedWeeks([week])}
                   >
-                    {label}
+                    Week {week}
                   </button>
                 ))}
               </div>
               <div className="date-checkboxes">
-                <span className="date-checkboxes-label">Or select multiple days:</span>
-                {playoffDateOptions.map(({ date, label }) => {
-                  const checked = allSelected || selectedPlayoffDates.includes(date);
+                <span className="date-checkboxes-label">Or select multiple weeks:</span>
+                {weekOptions.map((week) => {
+                  const checked = allSelected || selectedWeeks.includes(week);
                   return (
-                    <label key={date} className="date-checkbox">
+                    <label key={week} className="date-checkbox">
                       <input
                         type="checkbox"
                         checked={checked}
                         onChange={() => {
                           if (allSelected) {
-                            setSelectedPlayoffDates(
-                              playoffDateOptions.map((o) => o.date).filter((d) => d !== date)
+                            setSelectedWeeks(
+                              weekOptions.filter((w) => w !== week)
                             );
-                          } else if (selectedPlayoffDates.includes(date)) {
-                            const next = selectedPlayoffDates.filter((d) => d !== date);
-                            setSelectedPlayoffDates(next.length > 0 ? next : []);
+                          } else if (selectedWeeks.includes(week)) {
+                            const next = selectedWeeks.filter((w) => w !== week);
+                            setSelectedWeeks(next.length > 0 ? next : []);
                           } else {
-                            const next = [...selectedPlayoffDates, date].sort();
-                            setSelectedPlayoffDates(
-                              next.length === playoffDateOptions.length ? [] : next
+                            const next = [...selectedWeeks, week].sort((a, b) => a - b);
+                            setSelectedWeeks(
+                              next.length === weekOptions.length ? [] : next
                             );
                           }
                         }}
                       />
-                      {label}
+                      Week {week}
                     </label>
                   );
                 })}

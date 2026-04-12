@@ -12,7 +12,6 @@ import {
   fetchEventMatches,
   fetchEventStats,
   fetchPerPlayerMapPoints,
-  getPlayoffTeamNames,
   normalizeMatchDate,
 } from '../api/vlrService';
 import type {
@@ -27,7 +26,7 @@ import { fantasyScoring } from '../scoring';
 const SELECTED_EVENT_ID_KEY = 'selectedEventId';
 const SELECTED_EVENT_NAME_KEY = 'selectedEventName';
 const ROSTER_KEY_PREFIX = 'fantasyRoster_';
-const SELECTED_PLAYOFF_DATES_PREFIX = 'selectedPlayoffDates_';
+const SELECTED_WEEKS_PREFIX = 'selectedWeeks_';
 const ROSTER_SIZE = 5;
 const MAX_PER_TEAM = 2;
 
@@ -55,25 +54,29 @@ function saveRoster(eventId: string, roster: FantasyRosterSlot[]): void {
   localStorage.setItem(`${ROSTER_KEY_PREFIX}${eventId}`, JSON.stringify(roster));
 }
 
-function loadSelectedPlayoffDates(eventId: string): string[] {
+function loadSelectedWeeks(eventId: string): number[] {
   try {
-    const raw = localStorage.getItem(`${SELECTED_PLAYOFF_DATES_PREFIX}${eventId}`);
+    const raw = localStorage.getItem(`${SELECTED_WEEKS_PREFIX}${eventId}`);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
-    return Array.isArray(parsed) && parsed.every((x) => typeof x === 'string') ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    const weeks = parsed
+      .map((x) => Number(x))
+      .filter((n) => Number.isInteger(n) && n >= 1 && n <= 5);
+    return Array.from(new Set(weeks)).sort((a, b) => a - b);
   } catch {
     return [];
   }
 }
 
-function saveSelectedPlayoffDates(eventId: string, dates: string[]): void {
-  localStorage.setItem(`${SELECTED_PLAYOFF_DATES_PREFIX}${eventId}`, JSON.stringify(dates));
+function saveSelectedWeeks(eventId: string, weeks: number[]): void {
+  localStorage.setItem(`${SELECTED_WEEKS_PREFIX}${eventId}`, JSON.stringify(weeks));
 }
 
 interface AppState {
   selectedEventId: string | null;
   selectedEventName: string | null;
-  selectedPlayoffDates: string[];
+  selectedWeeks: number[];
   events: EventItemNorm[];
   eventMatches: EventMatchItemNorm[];
   eventStats: EventPlayerStatNorm[];
@@ -86,10 +89,8 @@ interface AppState {
 }
 
 interface AppContextValue extends AppState {
-  /** Teams that appear in Upper Quarterfinals or later (playoff bracket only). */
-  playoffTeamNames: Set<string>;
   selectEvent: (id: string, name: string) => void;
-  setSelectedPlayoffDates: (dates: string[]) => void;
+  setSelectedWeeks: (weeks: number[]) => void;
   loadEvents: () => Promise<void>;
   loadEventMatches: () => Promise<void>;
   setError: (msg: string | null) => void;
@@ -105,7 +106,7 @@ interface AppContextValue extends AppState {
 
 const AppContext = createContext<AppContextValue | null>(null);
 
-const MASTERS_ID = '2760';
+const TARGET_EVENT_ID = '2860';
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState>(() => {
@@ -115,7 +116,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return {
       selectedEventId: eventId,
       selectedEventName: eventName,
-      selectedPlayoffDates: eventId ? loadSelectedPlayoffDates(eventId) : [],
+      selectedWeeks: eventId ? loadSelectedWeeks(eventId) : [],
       events: [],
       eventMatches: [],
       eventStats: [],
@@ -135,7 +136,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ...prev,
       selectedEventId: id,
       selectedEventName: name,
-      selectedPlayoffDates: loadSelectedPlayoffDates(id),
+      selectedWeeks: loadSelectedWeeks(id),
       eventMatches: [],
       roster: loadRoster(id),
       eventStats: [],
@@ -144,11 +145,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  const setSelectedPlayoffDates = useCallback((dates: string[]) => {
+  const setSelectedWeeks = useCallback((weeks: number[]) => {
     setState((prev) => {
       const id = prev.selectedEventId;
-      if (id) saveSelectedPlayoffDates(id, dates);
-      return { ...prev, selectedPlayoffDates: dates };
+      if (id) saveSelectedWeeks(id, weeks);
+      return { ...prev, selectedWeeks: weeks };
     });
   }, []);
 
@@ -164,7 +165,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState((prev) => ({ ...prev, isLoading: true, errorMessage: null }));
     try {
       const all = await fetchEvents(60);
-      const events = all.filter((e) => e.id === MASTERS_ID);
+      const events = all.filter((e) => e.id === TARGET_EVENT_ID);
       setState((prev) => ({
         ...prev,
         events,
@@ -201,11 +202,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const loadFantasyData = useCallback(async () => {
     const id = state.selectedEventId;
     if (!id) return;
-    const selectedDates = state.selectedPlayoffDates;
+    const selectedWeeks = state.selectedWeeks;
     const options =
-      selectedDates.length === 0
+      selectedWeeks.length === 0
         ? undefined
-        : { selectedDates };
+        : { selectedWeeks };
     try {
       const [matches, stats, pointsResult] = await Promise.all([
         fetchEventMatches(id, 50),
@@ -232,7 +233,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         errorMessage: e instanceof Error ? e.message : String(e),
       }));
     }
-  }, [state.selectedEventId, state.selectedPlayoffDates]);
+  }, [state.selectedEventId, state.selectedWeeks]);
 
   const addPlayer = useCallback(
     (stat: EventPlayerStatNorm) => {
@@ -311,17 +312,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [state.selectedEventId]);
 
-  const playoffTeamNames = useMemo(
-    () => getPlayoffTeamNames(state.eventMatches),
-    [state.eventMatches]
-  );
-
   const value: AppContextValue = useMemo(
     () => ({
       ...state,
-      playoffTeamNames,
       selectEvent,
-      setSelectedPlayoffDates,
+      setSelectedWeeks,
       loadEvents,
       loadEventMatches,
       setError,
@@ -334,7 +329,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       isRosterFull,
       loadFantasyData,
     }),
-    [state, playoffTeamNames, selectEvent, setSelectedPlayoffDates, loadEvents, loadEventMatches, setError, clearError, addPlayer, removePlayer, pointsForPlayer, getPlayerBreakdown, totalPoints, isRosterFull, loadFantasyData]
+    [state, selectEvent, setSelectedWeeks, loadEvents, loadEventMatches, setError, clearError, addPlayer, removePlayer, pointsForPlayer, getPlayerBreakdown, totalPoints, isRosterFull, loadFantasyData]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

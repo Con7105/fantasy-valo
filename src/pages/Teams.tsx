@@ -8,16 +8,12 @@ export function Teams() {
   const {
     selectedEventId,
     eventStats,
-    playoffTeamNames,
     loadFantasyData,
     pointsForPlayer,
     getPlayerBreakdown,
   } = useApp();
 
-  const playerPool =
-    playoffTeamNames.size > 0
-      ? eventStats.filter((s) => playoffTeamNames.has(s.teamName))
-      : eventStats;
+  const playerPool = eventStats;
   const {
     teams,
     addTeam,

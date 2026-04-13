@@ -1,4 +1,6 @@
-const VLR_API_BASE = 'https://vlrggapi.vercel.app';
+/** axsddlr/vlrggapi-compatible host. Public Vercel deploy was disabled (HTTP 402). Override with env `VLR_API_BASE`. */
+const VLR_API_BASE =
+  process.env.VLR_API_BASE?.replace(/\/+$/, '') || 'https://vlrggapi.onrender.com';
 
 type VercelReq = { method?: string; url?: string; query: Record<string, string | string[] | undefined> };
 type VercelRes = {

@@ -43,7 +43,7 @@ Output is in `dist/`. Serve with any static host.
 2. From the repo root: `cd web && vercel` (follow prompts; first time it will link a new project).
 3. For production: `cd web && vercel --prod`.
 
-Share the deployed URL with friends; no auth. If the VLR API is blocked by CORS in the browser, add a small serverless proxy that forwards to `https://vlrggapi.vercel.app`.
+Share the deployed URL with friends; no auth. The bundled proxy forwards to `https://vlrggapi.onrender.com` by default (the old `vlrggapi.vercel.app` deploy is disabled and returns HTTP 402). To use another axsddlr/vlrggapi-compatible host, set **`VLR_API_BASE`** in Vercel project env and redeploy; Vite dev uses the same variable.
 
 ## Deploy on Netlify
 

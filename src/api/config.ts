@@ -2,6 +2,7 @@ const STORAGE_KEY = 'apiBaseURL';
 /** Same-origin proxy avoids CORS; use this by default when in the browser. */
 const DEFAULT_BASE = '/api/proxy';
 const DEAD_URL = 'https://vlrgg.cyclic.app/api';
+/** Legacy public API; Vercel returns 402 DEPLOYMENT_DISABLED — force same-origin proxy. */
 const DIRECT_VLR = 'https://vlrggapi.vercel.app';
 
 export function getApiBaseUrl(): string {

@@ -1,7 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-const VLR_API = 'https://vlrggapi.vercel.app'
+const VLR_API =
+  process.env.VLR_API_BASE?.replace(/\/+$/, '') || 'https://vlrggapi.onrender.com'
 
 // Dev middleware: handle /api/proxy?path=... (same format as Vercel serverless)
 function proxyApiPlugin() {

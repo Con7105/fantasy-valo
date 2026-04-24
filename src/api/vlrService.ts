@@ -1,4 +1,4 @@
-import { apiGet } from './client';
+import { apiGet, APIError } from './client';
 import type { MatchStatus } from '../types';
 import {
   eventItemFromApi,
@@ -138,55 +138,99 @@ function parseScore(s: string | undefined): number | undefined {
   return isNaN(n) ? undefined : n;
 }
 
-export async function fetchEvents(count = 60): Promise<EventItemNorm[]> {
-  const data = await apiGet<V2Wrapper<V2SegmentsData<V2EventSegment>>>('v2/events');
-  const segments = data.data?.segments ?? [];
-  const events: EventItemNorm[] = [];
-  for (const seg of segments) {
-    const id = extractEventId(seg.url_path);
-    if (!id) continue;
-    events.push(
-      eventItemFromApi({
-        id,
-        name: seg.title,
-        url: seg.url_path ?? '',
-        logo_url: seg.thumb,
-        region: seg.region,
-        status: mapStatus(seg.status),
-        prize_pool: seg.prize,
-      })
-    );
+const EVENTS_CACHE_KEY = 'vlr:events:cache:v1';
+const EVENT_MATCHES_CACHE_PREFIX = 'vlr:eventMatches:cache:v1:';
+
+function isTransientApiError(err: unknown): boolean {
+  return err instanceof APIError && (err.statusCode === 503 || err.statusCode === 502 || err.statusCode === 504);
+}
+
+function readCache<T>(key: string): T | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
   }
-  return events.slice(0, count);
+}
+
+function writeCache<T>(key: string, value: T): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore storage quota/privacy mode issues.
+  }
+}
+
+export async function fetchEvents(count = 60): Promise<EventItemNorm[]> {
+  try {
+    const data = await apiGet<V2Wrapper<V2SegmentsData<V2EventSegment>>>('v2/events');
+    const segments = data.data?.segments ?? [];
+    const events: EventItemNorm[] = [];
+    for (const seg of segments) {
+      const id = extractEventId(seg.url_path);
+      if (!id) continue;
+      events.push(
+        eventItemFromApi({
+          id,
+          name: seg.title,
+          url: seg.url_path ?? '',
+          logo_url: seg.thumb,
+          region: seg.region,
+          status: mapStatus(seg.status),
+          prize_pool: seg.prize,
+        })
+      );
+    }
+    writeCache(EVENTS_CACHE_KEY, events);
+    return events.slice(0, count);
+  } catch (err) {
+    if (!isTransientApiError(err)) throw err;
+    const cached = readCache<EventItemNorm[]>(EVENTS_CACHE_KEY);
+    if (cached && cached.length > 0) return cached.slice(0, count);
+    throw err;
+  }
 }
 
 export async function fetchEventMatches(
   eventId: string,
   count = 50
 ): Promise<EventMatchItemNorm[]> {
-  const data = await apiGet<V2Wrapper<V2SegmentsData<V2MatchSegment>>>('v2/events/matches', {
-    event_id: eventId,
-  });
-  const segments = data.data?.segments ?? [];
-  const matches: EventMatchItemNorm[] = [];
-  for (const seg of segments.slice(0, count)) {
-    const matchId = seg.match_id;
-    if (!matchId) continue;
-    matches.push(
-      eventMatchFromApi({
-        id: matchId,
-        url: seg.url ?? '',
-        stage: seg.event_series,
-        team1_name: seg.team1?.name ?? 'TBD',
-        team2_name: seg.team2?.name ?? 'TBD',
-        team1_score: parseScore(seg.team1?.score),
-        team2_score: parseScore(seg.team2?.score),
-        status: mapStatus(seg.status),
-        date: seg.date,
-      })
-    );
+  const cacheKey = `${EVENT_MATCHES_CACHE_PREFIX}${eventId}`;
+  try {
+    const data = await apiGet<V2Wrapper<V2SegmentsData<V2MatchSegment>>>('v2/events/matches', {
+      event_id: eventId,
+    });
+    const segments = data.data?.segments ?? [];
+    const matches: EventMatchItemNorm[] = [];
+    for (const seg of segments.slice(0, count)) {
+      const matchId = seg.match_id;
+      if (!matchId) continue;
+      matches.push(
+        eventMatchFromApi({
+          id: matchId,
+          url: seg.url ?? '',
+          stage: seg.event_series,
+          team1_name: seg.team1?.name ?? 'TBD',
+          team2_name: seg.team2?.name ?? 'TBD',
+          team1_score: parseScore(seg.team1?.score),
+          team2_score: parseScore(seg.team2?.score),
+          status: mapStatus(seg.status),
+          date: seg.date,
+        })
+      );
+    }
+    writeCache(cacheKey, matches);
+    return matches;
+  } catch (err) {
+    if (!isTransientApiError(err)) throw err;
+    const cached = readCache<EventMatchItemNorm[]>(cacheKey);
+    if (cached && cached.length > 0) return cached.slice(0, count);
+    throw err;
   }
-  return matches;
 }
 
 async function fetchMatchDetail(matchId: string): Promise<V2MatchDetailSegment | null> {
@@ -489,7 +533,7 @@ export function normalizeMatchDate(dateStr: string | undefined): string | null {
   const s = dateStr.trim();
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
 
-  let d = new Date(s);
+  const d = new Date(s);
   if (!Number.isNaN(d.getTime())) {
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');

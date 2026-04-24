@@ -8,6 +8,7 @@ import { Stats } from './pages/Stats';
 import { Teams } from './pages/Teams';
 import { Matchups } from './pages/Matchups';
 import { Settings } from './pages/Settings';
+import { Calculator } from './pages/Calculator';
 import './App.css';
 
 function App() {
@@ -22,6 +23,7 @@ function App() {
               <Route path="stats" element={<Stats />} />
               <Route path="teams" element={<Teams />} />
               <Route path="matchups" element={<Matchups />} />
+              <Route path="calculator" element={<Calculator />} />
               <Route path="settings" element={<Settings />} />
             </Route>
           </Routes>

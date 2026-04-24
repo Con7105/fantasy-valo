@@ -16,6 +16,9 @@ export function Layout() {
         <NavLink to="/matchups" className={({ isActive }) => (isActive ? 'tab active' : 'tab')}>
           Matchups
         </NavLink>
+        <NavLink to="/calculator" className={({ isActive }) => (isActive ? 'tab active' : 'tab')}>
+          Calculator
+        </NavLink>
         <NavLink to="/settings" className={({ isActive }) => (isActive ? 'tab active' : 'tab')}>
           Settings
         </NavLink>
